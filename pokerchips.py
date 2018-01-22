@@ -26,14 +26,14 @@ class Player:
     
     def printInfo(self):
         """ Prints a string describing the given player"""
-        if player.allin == True:
+        if self.allin == True:
             print("Player " + self.name + " is all in with " + self.bet + " chips.")
         else:
             print("Player " + self.name + " has " + str(self.chips) + " chips and is betting " + str(self.bet) + " chips.")
 
-    def resolve_bet(self, pot):
-        """ Resolves a completed bet by either adding or subtracting 
-        chips from the given player"""
+    def resolveBet(self, pot):
+        """ Resolves a completed bet by awarding the pot to the winner
+        or reinitializing the bet to 0 for a loser"""
         if self.won == True:
             self.bet = 0
             self.chips += pot
@@ -57,102 +57,157 @@ class Player:
         self.chips = 0
 
 class Table:
-    def __init__(self, Players = [], foldedPlayers = [], pot = 0):
+    """ Creates a representation of a poker table. This includes 5 lists of 
+    Player objects: a full list of players, a list of players that have gone
+    bankrupt, a list of players that have folded, a list of players who are
+    currently all-in, and a list of players in the current betting rotation.
+    The table also keeps track of the small blind, big blind, and current bet 
+    as integers, and keeps a list of all pots on the table (main pot and side pots)
+    """
+    def __init__(self, Players = [], bankruptPlayers = [], foldedPlayers = [], allinPlayers = [], rotation = [], smallBlind = 0, bigBlind = 0, currentBet = 0, pots = []):
         self.Players = Players
-        self.pot = pot
+        self.bankruptPlayers = bankruptPlayers
+        self.foldedPlayers = foldedPlayers
+        self.allinPlayers = allinPlayers
+        self.rotation = rotation
+        self.smallBlind = smallBlind
+        self.bigBlind = bigBlind
+        self.currentBet = currentBet
+        self.pots = pots
+    
+    def getPlayers(self):
+        """ Uses user input to find the names of all the players, and how many chips they
+        should start with, then sets the Players to that """
+        # Find out how many people are playing, their names, and the starting amount of chips
+        while True:
+            p = get_int("How many players should there be? ")
+            if p >= 2:
+                playercount = p
+                break
+            else:
+                print("Please choose a higher number of players.\n")
+                continue
+        playernames = []
+        for i in range(playercount):
+            s = "Player " + str(i + 1) + ", what is your name? "
+            name = input(s)
+            playernames += [str(name)]
+        startChips = get_int("How many chips should each player start with? ")
+        
+        # Fill up Players
+        for player in playernames:
+            self.Players += [Player(player, startChips)]
+    
+    def getBlinds(self):
+        """ Uses user input to set the small and big blind. Big blind will always be
+        double the small blind"""
+        while True:
+            s = get_int("How much should small blind be (big blind will be double the small blind)? ")
+            if 2 * s <= self.Players[0].chips:
+                self.smallBlind = s
+                self.bigBlind = 2 * s
+                break
+            else:
+                print("Big blind cannot be greater than the amount of chips each player starts with.\n")
+                continue
+
+    def getPreFlopRotation(self, round):
+        """ Uses the round number to determine the (pre-flop) betting rotation."""
+        # Set indices in player list for dealer and blinds
+        playerCount = len(self.Players)
+        dealer = round % playerCount - 1
+
+        if (playerCount > 2):
+            blind1 = dealer + 1
+            blind2 = dealer + 2
+        else:
+            blind1 = dealer + 1
+            blind2 = dealer
+        
+        print("Player", self.Players[dealer].name, "is the dealer.\n")
+
+        # Create a list of player indices in their pre-flop rotation order
+        for i in range(blind2 + 1, playerCount):
+            self.rotation += [self.Players[i]]
+        for i in range(blind2 + 1):
+            self.rotation += [self.Players[i]]
+
+    def getRotation(self, round):
+        """ Uses the round number to determine the betting rotation."""
+        # Set indices in player list for the dealer
+        playerCount = len(self.Players)
+        dealer = round % playerCount - 1
+
+        # Create a list of player indices in their regular rotation order
+        for i in range(dealer + 1, playerCount):
+            self.rotation += [self.Players[i]]
+        for i in range(dealer + 1):
+            self.rotation += [self.Players[i]]
+
+    def preflop(self):
+        """ Handles the pre-flop betting rotation"""
+        # Set the main pot to the sum of the blinds and the currentBet to the big blind
+        self.pots += [self.bigBlind + self.smallBlind]
+        self.currentBet = self.bigBlind
+        
+        # Handle small blind
+        if self.rotation[-2].chips > self.smallBlind:
+            print("Player", self.rotation[-2].name, "is small blind, and starts with a bet of", self.smallBlind, "chips.")
+            self.rotation[-2].Call(self.smallBlind)
+        elif self.rotation[-2].chips == smallBlind:
+            print("Player", self.rotation[-2].name, "is small blind, and is all in with", self.smallBlind, "chips.")
+            self.rotation[-2].Allin()
+            self.allinPlayers += self.rotation[-2]
+            self.rotation.remove(-2)
+        else:
+            print("Player", self.rotation[-2].name, "is small blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", self.rotation[-2].chips, "chips.")
+            self.rotation[-2].Allin()
+            self.allinPlayers += self.rotation[-2]
+            self.rotation.remove(-2)
+        
+        # Handle big blind
+        if self.rotation[-1].chips > self.bigBlind:
+            print("Player", self.rotation[-1].name, "is big blind, and starts with a bet of", self.bigBlind, "chips.\n")
+            self.rotation[-1].Call(self.bigBlind)
+        elif self.rotation[-1].chips == bigBlind:
+            print("Player", self.rotation[-1].name, "is big blind, and is all in with", self.bigBlind, "chips.\n")
+            self.rotation[-1].Allin()
+            self.allinPlayers += self.rotation[-1]
+            self.rotation.remove(-1)
+        else:
+            print("Player", self.rotation[-1].name, "is big blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", self.rotation[-1].chips, "chips.\n")
+            self.rotation[-1].Allin()
+            self.allinPlayers += self.rotation[-1]
+            self.rotation.remove(-1)
+        
+        playerInfo(self.Players)
+
+    #def bettingRotation(self):
+
+
+
+
 
 
 def main():
-    
-    # Find out how many people are playing, their names, and the starting amount of chips
+    # Initialize the poker table
+    table = Table()
+
+    # Get the players and blinds
+    table.getPlayers()
+    table.getBlinds()
+
+    # Begin looping through rounds until only one player remains with chips
+    round = 0
     while True:
-        p = get_int("How many players should there be? ")
-        if p >= 2:
-            playercount = p
-            break
-        else:
-            print("Please choose a higher number of players.\n")
-            continue
-    playernames = []
-    for i in range(playercount):
-        s = "Player " + str(i + 1) + ", what is your name? "
-        name = input(s)
-        playernames += [str(name)]
-    startchips = get_int("How many chips should each player start with? ")
-    
-    # Create an array of all the players
-    players = []
-    for player in playernames:
-        players += [Player(player, startchips)]
-    
-    # Get the amount for big blind and small blind
-    while True:
-        b = get_int("How much should big blind be (small blind will be half of big blind, rounding down)? ")
-        if b <= startchips:
-            big_blind = b
-            small_blind = round(b/2)
-            break
-        else:
-            print("Big blind cannot be greater than the amount of chips each player starts with.\n")
-            continue
+        round += 1
+        print("\nRound", round)
 
-    Round = 0
-    while True:
-        Round += 1
-        print("\nRound", Round)
-        pot = big_blind + small_blind
-        current_bet = big_blind
-        dealer = Round % playercount - 1
-        
-        # Set indices in player list for dealer and blinds
-        if (playercount > 2):
-            blind1 = dealer - 1
-            blind2 = dealer - 2
-        else:
-            blind1 = dealer - 1
-            blind2 = dealer
-        print("Player", players[dealer].name, "is the dealer.")
+        table.getPreFlopRotation(round)
+        table.preflop
 
-        # Create a list of player indices in their pre-flop rotation order and create an empty list for the indices of players that are all-in.
-        preflop_rotation = []
-        for i in range(blind2 + 1, playercount):
-            preflop_rotation += [i]
-        for i in range(blind2 + 1):
-            preflop_rotation += [i]
-        allinplayers = []
 
-        # Handle small blind
-        if players[blind1].chips > small_blind:
-            print("Player", players[blind1].name, "is small blind, and starts with a bet of", small_blind, "chips.\n")
-            players[blind1].call(small_blind)
-        elif players[blind1].chips == small_blind:
-            print("Player", players[blind1].name, "is small blind, and is all in with", small_blind, "chips.\n")
-            players[blind1].Allin()
-            allinplayers += [blind1]
-            preflop_rotation.remove(blind1)
-        else:
-            print("Player", players[blind1].name, "is small blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", players[blind1].chips, "chips.\n")
-            players[blind1].Allin()
-            allinplayers += [blind1]
-            preflop_rotation.remove(blind1)
-        
-        # Handle big blind
-        if players[blind2].chips > big_blind:
-            print("Player", players[blind2].name, "is big blind, and starts with a bet of", big_blind, "chips.\n")
-            players[blind2].call(big_blind)
-        elif players[blind2].chips == big_blind:
-            print("Player", players[blind2].name, "is small blind, and is all in with", big_blind, "chips.\n")
-            players[blind2].Allin()
-            allinplayers += [blind2]
-            preflop_rotation.remove(blind2)
-        else:
-            print("Player", players[blind2].name, "is big blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", players[blind2].chips, "chips.\n")
-            players[blind2].Allin()
-            allinplayers += [blind2]
-            preflop_rotation.remove(blind2)
-        
-        player_info(players)
-
+    """
         # Single betting rotation (pre-flop). Does a betting rotation and returns the updated player info to be passed onto the next betting rotation
         updated_info = betting_rotation(players, preflop_rotation, allinplayers, current_bet, pot)
         players = updated_info[0]
@@ -250,7 +305,8 @@ def main():
 
         # Find winner
         for player in players:
-            player.resolve_bet(pot)
+            player.resolveBet(pot)
+    """
         
         
 def betting_rotation(players, rotation, allinplayers, current_bet, pot):
@@ -359,10 +415,29 @@ def betting_rotation(players, rotation, allinplayers, current_bet, pot):
 
     return [players, allinplayers, current_bet, pot]
 
-def player_info(players):
+def playerInfo(players):
     """ Prints out important player info"""    
     for player in players:
         player.printInfo()
+
+def preflopTest():
+    # Initialize 5 example players and place them in a list
+    p1 = Player("Andrew", 100)
+    p2 = Player("Brett", 100)
+    p3 = Player("Cindy", 100)
+    p4 = Player("Deandra", 100)
+    p5 = Player("Egbert", 100)
+    players = [p1, p2, p3, p4, p5]
+
+    # Initialize a table with these players, a small blind of 1 and a big blind of 2
+    table = Table(players, smallBlind = 1, bigBlind = 2)
+
+    # Do a preflop runthrough
+    round = 1
+    print("\nRound", round)
+
+    table.getPreFlopRotation(round)
+    table.preflop()
 
 def get_int(s):
     """ Returns an integer casting of user input (displays the string s 
@@ -372,10 +447,10 @@ def get_int(s):
         try:
             r = int(input(s))
         except:
-            print("Don't be a bitch. Pick a non-negative integer.\n")
+            print("Please pick a non-negative integer.\n")
             continue
         if r < 0:
-            print("Don't be a bitch. Pick a non-negative integer.\n")
+            print("Please pick a non-negative integer.\n")
             continue
         else:
             return r
