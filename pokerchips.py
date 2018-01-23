@@ -56,19 +56,43 @@ class Player:
         self.bet += self.chips
         self.chips = 0
 
+class Pot:
+    """ Creates a representation of a pot. This includes the number of chips
+    in the pot, the number of chips per player, a list of the players in the
+    pot, and whether the pot is the main pot or a side pot 
+    """
+    def __init__(self, amount = 0, Players = [], mainPot = True):
+        self.amount = amount
+        self.Players = Players
+        if Players != []:
+            self.amountPerPlayer = amount / len(Players)
+        else:
+            self.amountPerPlayer = 0
+        self.mainPot = mainPot
+    
+    def increasePot(self, inc):
+        """ Increases pot by a given amount. Changes amountPerPlayer to compensate"""
+        self.amount += inc
+        self.amountPerPlayer = amount / len(Players)
+
+    #TODO: create function for removing folded players from a pot
+
+
 class Table:
     """ Creates a representation of a poker table. This includes 5 lists of 
     Player objects: a full list of players, a list of players that have gone
     bankrupt, a list of players that have folded, a list of players who are
-    currently all-in, and a list of players in the current betting rotation.
+    currently all-in, a list of players who are all-in whose bets have been
+    resolved to pots, and a list of players in the current betting rotation.
     The table also keeps track of the small blind, big blind, and current bet 
     as integers, and keeps a list of all pots on the table (main pot and side pots)
     """
-    def __init__(self, Players = [], bankruptPlayers = [], foldedPlayers = [], allinPlayers = [], rotation = [], smallBlind = 0, bigBlind = 0, currentBet = 0, pots = []):
+    def __init__(self, Players = [], bankruptPlayers = [], foldedPlayers = [], allinPlayers = [], resolvedAllinPlayers = [], rotation = [], smallBlind = 0, bigBlind = 0, currentBet = 0, pots = []):
         self.Players = Players
         self.bankruptPlayers = bankruptPlayers
         self.foldedPlayers = foldedPlayers
         self.allinPlayers = allinPlayers
+        self.resolvedAllInPlayers = resolvedAllinPlayers
         self.rotation = rotation
         self.smallBlind = smallBlind
         self.bigBlind = bigBlind
@@ -146,9 +170,6 @@ class Table:
 
     def preflop(self):
         """ Handles the pre-flop betting rotation"""
-        # Set the main pot to the sum of the blinds and the currentBet to the big blind
-        self.pots += [self.bigBlind + self.smallBlind]
-        self.currentBet = self.bigBlind
         
         # Handle small blind
         if self.rotation[-2].chips > self.smallBlind:
@@ -179,10 +200,58 @@ class Table:
             self.rotation[-1].Allin()
             self.allinPlayers += self.rotation[-1]
             self.rotation.remove(-1)
+
+        # Set the main pot to the sum of the bets of these players with the blinds and the currentBet to the highest between them
+        self.pots += [self.rotation[-2].bet + self.rotation[-1].bet]
+        self.currentBet = max(self.rotation[-2].bet, self.rotation[-1].bet)
+
+        self.createPots()
+        
+
+
         
         playerInfo(self.Players)
+    
+    def createPots(self):
+        # Sort the allinPlayers from least to greatest
+        self.allinPlayers = self.allinPlayers.chipMSort
+        
+        # Iterate through the players who are all-in but haven't had their bets put into pots yet
+        for player in self.allinPlayers:
+            i = self.allinPlayers.index(player)
+            
+            # If there are no pots so far, create the main pot and set the player bet to zero
+            if self.pots == []:
+                self.pots += [Pot(player.bet * (len(self.allinPlayers) - i + len(self.rotation)), self.allinPlayers[i:] + self.rotation, True)]
+                player.bet = 0
+            
+            # Otherwise, subtract the previous pot's amountPerPlayer from the player bet, create the next side pot, and then set the player bet to zero
+            else:
+                player.bet -= self.pots[i - 1].amountPerPlayer
+                self.pots += [Pot(player.bet * (len(self.allinPlayers) - i + len(self.rotation)), self.allinPlayers[i:] + self.rotation, False)]
+                player.bet = 0
 
-    #def bettingRotation(self):
+            # Move the player to resolvedAllinPlayers
+            self.resolvedAllinPlayers += [player]
+            self.allinPlayers.remove(player)
+        
+        # If there are no pots so far, create the main pot from players still in the rotation
+        if self.pots == []:
+            self.pots += [Pot(self.rotation[0].bet * len(self.rotation), True)]
+            for player in self.rotation:
+                player.bet = 0
+        
+        # Otherwise, add to the latest side pot
+        # TODO: Create a function for comparing lists of players so we can tell when to add to the current side pot or create another
+        else:
+            self.pots[-1].increasePot(self.rotation[0].bet)
+            for player in self.rotation:
+                player.bet = 0
+
+
+        
+    def bettingRotation(self):
+        return 0
 
 
 
@@ -439,7 +508,9 @@ def get_int(s):
 def chipMSort(L):
     """Runs mergesort on a list of players to put them in order
     of least to greatest chips"""
-    if len(L) == 1:
+    if L == []:
+        return []
+    elif len(L) == 1:
         return [L[0]]
     else:
         return chipMerge(chipMSort(L[0:int(len(L)/2)]), chipMSort(L[int(len(L)/2):]))
