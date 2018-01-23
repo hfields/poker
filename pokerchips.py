@@ -19,7 +19,7 @@ class Player:
     
     def __repr__(self):
         """ Returns a string describing the given player"""
-        if player.allin == True:
+        if self.allin == True:
             return "Player " + self.name + " is all in with " + self.bet + " chips."
         else:
             return "Player " + self.name + " has " + str(self.chips) + " chips and is betting " + str(self.bet) + " chips."
@@ -420,6 +420,41 @@ def playerInfo(players):
     for player in players:
         player.printInfo()
 
+def get_int(s):
+    """ Returns an integer casting of user input (displays the string s 
+    to the user. Validates input to make sure that a non-negative integer
+    is input."""
+    while(True):
+        try:
+            r = int(input(s))
+        except:
+            print("Please pick a non-negative integer.\n")
+            continue
+        if r < 0:
+            print("Please pick a non-negative integer.\n")
+            continue
+        else:
+            return r
+
+def chipMSort(L):
+    """Runs mergesort on a list of players to put them in order
+    of least to greatest chips"""
+    if len(L) == 1:
+        return [L[0]]
+    else:
+        return chipMerge(chipMSort(L[0:int(len(L)/2)]), chipMSort(L[int(len(L)/2):]))
+
+def chipMerge(L1, L2):
+    """Helper function for chipMSort"""
+    if L1 == [] or L2 == []:
+        return L1 + L2
+    elif L1[0].chips < L2[0].chips:
+        return [L1[0]] + chipMerge(L1[1:], L2) 
+    elif L2[0].chips < L1[0].chips:
+        return [L2[0]] + chipMerge(L1, L2[1:])
+    else:
+        return [L1[0]] + [L2[0]]
+
 def preflopTest():
     # Initialize 5 example players and place them in a list
     p1 = Player("Andrew", 100)
@@ -439,25 +474,17 @@ def preflopTest():
     table.getPreFlopRotation(round)
     table.preflop()
 
-def get_int(s):
-    """ Returns an integer casting of user input (displays the string s 
-    to the user. Validates input to make sure that a non-negative integer
-    is input."""
-    while(True):
-        try:
-            r = int(input(s))
-        except:
-            print("Please pick a non-negative integer.\n")
-            continue
-        if r < 0:
-            print("Please pick a non-negative integer.\n")
-            continue
-        else:
-            return r
+def sortTest():
+    # Initialize 5 example players and place them in a list
+    p1 = Player("Andrew", 300)
+    p2 = Player("Brett", 200)
+    p3 = Player("Cindy", 500)
+    p4 = Player("Deandra", 600)
+    p5 = Player("Egbert", 100)
+    players = [p1, p2, p3, p4, p5]
 
-
-if __name__ == "__main__" and debug == False:
-    main()
+    # Run sort and print the list
+    print(chipMSort(players))
 
 def rotation_test(blind2, playercount):
     preflop_rotation = []
@@ -466,3 +493,6 @@ def rotation_test(blind2, playercount):
     for i in range(blind2 + 1):
         preflop_rotation += [i]
     return preflop_rotation
+
+if __name__ == "__main__" and debug == False:
+    main()
