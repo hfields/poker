@@ -23,13 +23,6 @@ class Player:
             return "Player " + self.name + " is all in with " + self.bet + " chips."
         else:
             return "Player " + self.name + " has " + str(self.chips) + " chips and is betting " + str(self.bet) + " chips."
-    
-    def printInfo(self):
-        """ Prints a string describing the given player"""
-        if self.allin == True:
-            print("Player " + self.name + " is all in with " + self.bet + " chips.")
-        else:
-            print("Player " + self.name + " has " + str(self.chips) + " chips and is betting " + str(self.bet) + " chips.")
 
     def resolveBet(self, pot):
         """ Resolves a completed bet by awarding the pot to the winner
@@ -64,18 +57,46 @@ class Pot:
     def __init__(self, amount = 0, Players = [], mainPot = True):
         self.amount = amount
         self.Players = Players
-        if Players != []:
-            self.amountPerPlayer = amount / len(Players)
-        else:
-            self.amountPerPlayer = 0
-        self.mainPot = mainPot
-    
-    def increasePot(self, inc):
-        """ Increases pot by a given amount. Changes amountPerPlayer to compensate"""
-        self.amount += inc
         self.amountPerPlayer = amount / len(Players)
+        self.mainPot = mainPot
 
-    #TODO: create function for removing folded players from a pot
+    def __repr__(self):
+        """ Returns a string describing the given pot"""
+        # Create a string to be filled up and returned
+        s = str(self.amount) + " chips between "
+        
+        # Add the names of the players in the pot
+        for player in self.Players[0:-1]:
+            s += player.name + ", "
+        
+        if len(self.Players) == 2:
+            s = s[0:-2] + " "
+
+        s += "and " + self.Players[-1].name + "."
+
+        if self.mainPot:
+            return s
+        else:
+            return s + " (side pot)"
+
+    def increaseBet(self, newAmount):
+        """ Increases the bet required to stay in the pot (amountPerPlayer) to 
+        newAmount"""
+        self.amountPerPlayer = newAmount
+
+    def addPlayer(self, newPlayer):
+        """ Adds a player to the pot by increasing the amount by that player's
+        bet and adding that player to the list of players in the pot"""
+        self.amount += newPlayer.bet
+        self.Players += [newPlayer]
+    
+    def removePlayer(self, foldPlayer):
+        """ Removes a player from the pot by removing that player from the list 
+        of players in the pot"""
+        for player in Players:
+            if player.name == foldPlayer.name:
+                Players.remove(foldPlayer)
+                break
 
 
 class Table:
@@ -99,6 +120,21 @@ class Table:
         self.currentBet = currentBet
         self.pots = pots
     
+    def playerInfo(self):
+        """ Prints out important player info"""    
+        for player in self.Players:
+            print(player)
+
+    def potInfo(self):
+        """ Prints out info about the pots"""
+        numPots = len(self.pots)
+        if numPots == 1:
+            print("There is currently 1 pot:")
+        else:
+            print("There are currently " + str(numPots) + " pots:")
+        for pot in self.pots:
+            print(pot)
+
     def getPlayers(self):
         """ Uses user input to find the names of all the players, and how many chips they
         should start with, then sets the Players to that """
@@ -113,9 +149,16 @@ class Table:
                 continue
         playernames = []
         for i in range(playercount):
-            s = "Player " + str(i + 1) + ", what is your name? "
-            name = input(s)
-            playernames += [str(name)]
+            while True:
+                s = "Player " + str(i + 1) + ", what is your name? "
+                name = str(input(s))
+                if name in playernames:
+                    print("That name has already been taken. Please choose another.\n")
+                    continue
+                else:
+                    playernames += [name]
+                    break
+        
         startChips = get_int("How many chips should each player start with? ")
         
         # Fill up Players
@@ -201,52 +244,36 @@ class Table:
             self.allinPlayers += self.rotation[-1]
             self.rotation.remove(-1)
 
-        # Set the main pot to the sum of the bets of these players with the blinds and the currentBet to the highest between them
-        self.pots += [self.rotation[-2].bet + self.rotation[-1].bet]
+        # Set the currentBet to the highest bet made by the players in the blinds and create the pots
         self.currentBet = max(self.rotation[-2].bet, self.rotation[-1].bet)
-
         self.createPots()
-        
 
-
-        
-        playerInfo(self.Players)
+        self.playerInfo()
+        self.potInfo()
     
     def createPots(self):
         # Sort the allinPlayers from least to greatest
-        self.allinPlayers = self.allinPlayers.chipMSort
+        self.allinPlayers = chipMSort(self.allinPlayers)
         
         # Iterate through the players who are all-in but haven't had their bets put into pots yet
         for player in self.allinPlayers:
             i = self.allinPlayers.index(player)
             
-            # If there are no pots so far, create the main pot and set the player bet to zero
+            # If there are no pots so far, create the main pot
             if self.pots == []:
-                self.pots += [Pot(player.bet * (len(self.allinPlayers) - i + len(self.rotation)), self.allinPlayers[i:] + self.rotation, True)]
-                player.bet = 0
+                self.pots += [Pot(player.bet * (len(self.allinPlayers) - i), self.allinPlayers[i:], True)]
             
-            # Otherwise, subtract the previous pot's amountPerPlayer from the player bet, create the next side pot, and then set the player bet to zero
+            # Otherwise, create the next side pot
             else:
-                player.bet -= self.pots[i - 1].amountPerPlayer
-                self.pots += [Pot(player.bet * (len(self.allinPlayers) - i + len(self.rotation)), self.allinPlayers[i:] + self.rotation, False)]
-                player.bet = 0
+                self.pots += [Pot(player.bet - self.pots[i - 1].amountPerPlayer * (len(self.allinPlayers) - i), self.allinPlayers[i:], False)]
 
             # Move the player to resolvedAllinPlayers
             self.resolvedAllinPlayers += [player]
             self.allinPlayers.remove(player)
         
-        # If there are no pots so far, create the main pot from players still in the rotation
+        # If there are no pots so far, create the main pot with the blinds
         if self.pots == []:
-            self.pots += [Pot(self.rotation[0].bet * len(self.rotation), True)]
-            for player in self.rotation:
-                player.bet = 0
-        
-        # Otherwise, add to the latest side pot
-        # TODO: Create a function for comparing lists of players so we can tell when to add to the current side pot or create another
-        else:
-            self.pots[-1].increasePot(self.rotation[0].bet)
-            for player in self.rotation:
-                player.bet = 0
+            self.pots += [Pot(self.rotation[-2].bet + self.rotation[-1].bet, self.rotation[-2:], True)]
 
 
         
@@ -483,11 +510,6 @@ def betting_rotation(players, rotation, allinplayers, current_bet, pot):
                 break
 
     return [players, allinplayers, current_bet, pot]
-
-def playerInfo(players):
-    """ Prints out important player info"""    
-    for player in players:
-        player.printInfo()
 
 def get_int(s):
     """ Returns an integer casting of user input (displays the string s 
