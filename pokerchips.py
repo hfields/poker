@@ -20,7 +20,7 @@ class Player:
     def __repr__(self):
         """ Returns a string describing the given player"""
         if self.allin == True:
-            return "Player " + self.name + " is all in with " + self.bet + " chips."
+            return "Player " + self.name + " is all in with " + str(self.bet) + " chips."
         else:
             return "Player " + self.name + " has " + str(self.chips) + " chips and is betting " + str(self.bet) + " chips."
 
@@ -49,6 +49,11 @@ class Player:
         self.bet += self.chips
         self.chips = 0
 
+    def inPot(self, pot):
+        """ Return True if the player is in a certain pot, False
+        if not"""
+        return self in pot.Players
+
 class Pot:
     """ Creates a representation of a pot. This includes the number of chips
     in the pot, the number of chips per player, a list of the players in the
@@ -57,37 +62,42 @@ class Pot:
     def __init__(self, amount = 0, Players = [], mainPot = True):
         self.amount = amount
         self.Players = Players
-        self.amountPerPlayer = amount / len(Players)
+        self.amountPerPlayer = amount // len(Players)
         self.mainPot = mainPot
 
     def __repr__(self):
         """ Returns a string describing the given pot"""
         # Create a string to be filled up and returned
-        s = str(self.amount) + " chips between "
+        s = str(self.amount) + " chips "
         
-        # Add the names of the players in the pot
-        for player in self.Players[0:-1]:
-            s += player.name + ", "
-        
-        if len(self.Players) == 2:
-            s = s[0:-2] + " "
+        if len(self.Players) == 1:
+            s += "with " + self.Players[0].name
+        else:
+            s += "between "
+            # Add the names of the players in the pot
+            for player in self.Players[0:-1]:
+                s += player.name + ", "
+            
+            if len(self.Players) == 2:
+                s = s[0:-2] + " "
 
-        s += "and " + self.Players[-1].name + "."
+            s += "and " + self.Players[-1].name
 
         if self.mainPot:
-            return s
+            return s + "."
         else:
-            return s + " (side pot)"
-
-    def increaseBet(self, newAmount):
-        """ Increases the bet required to stay in the pot (amountPerPlayer) to 
-        newAmount"""
-        self.amountPerPlayer = newAmount
+            return s + " (side pot)."
+    
+    def increaseBet(self, inc):
+        """ Increases the bet required to stay in the pot (amountPerPlayer) by inc"""
+        self.amountPerPlayer += inc
 
     def addPlayer(self, newPlayer):
         """ Adds a player to the pot by increasing the amount by that player's
-        bet and adding that player to the list of players in the pot"""
+        bet, adding that player to the list of players in the pot, and changing
+        amountPerPlayer as needed"""
         self.amount += newPlayer.bet
+        self.increaseBet(newPlayer.bet - self.amountPerPlayer)
         self.Players += [newPlayer]
     
     def removePlayer(self, foldPlayer):
@@ -96,7 +106,7 @@ class Pot:
         for player in Players:
             if player.name == foldPlayer.name:
                 Players.remove(foldPlayer)
-                break
+                return
 
 
 class Table:
@@ -113,16 +123,16 @@ class Table:
         self.bankruptPlayers = bankruptPlayers
         self.foldedPlayers = foldedPlayers
         self.allinPlayers = allinPlayers
-        self.resolvedAllInPlayers = resolvedAllinPlayers
+        self.resolvedAllinPlayers = resolvedAllinPlayers
         self.rotation = rotation
         self.smallBlind = smallBlind
         self.bigBlind = bigBlind
         self.currentBet = currentBet
         self.pots = pots
     
-    def playerInfo(self):
+    def playerInfo(self, players):
         """ Prints out important player info"""    
-        for player in self.Players:
+        for player in players:
             print(player)
 
     def potInfo(self):
@@ -213,42 +223,37 @@ class Table:
 
     def preflop(self):
         """ Handles the pre-flop betting rotation"""
-        
         # Handle small blind
         if self.rotation[-2].chips > self.smallBlind:
             print("Player", self.rotation[-2].name, "is small blind, and starts with a bet of", self.smallBlind, "chips.")
             self.rotation[-2].Call(self.smallBlind)
-        elif self.rotation[-2].chips == smallBlind:
+        elif self.rotation[-2].chips == self.smallBlind:
             print("Player", self.rotation[-2].name, "is small blind, and is all in with", self.smallBlind, "chips.")
             self.rotation[-2].Allin()
-            self.allinPlayers += self.rotation[-2]
-            self.rotation.remove(-2)
+            self.allinPlayers += [self.rotation.pop(-2)]
         else:
             print("Player", self.rotation[-2].name, "is small blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", self.rotation[-2].chips, "chips.")
             self.rotation[-2].Allin()
-            self.allinPlayers += self.rotation[-2]
-            self.rotation.remove(-2)
+            self.allinPlayers += [self.rotation.pop(-2)]
         
         # Handle big blind
         if self.rotation[-1].chips > self.bigBlind:
             print("Player", self.rotation[-1].name, "is big blind, and starts with a bet of", self.bigBlind, "chips.\n")
             self.rotation[-1].Call(self.bigBlind)
-        elif self.rotation[-1].chips == bigBlind:
+        elif self.rotation[-1].chips == self.bigBlind:
             print("Player", self.rotation[-1].name, "is big blind, and is all in with", self.bigBlind, "chips.\n")
             self.rotation[-1].Allin()
-            self.allinPlayers += self.rotation[-1]
-            self.rotation.remove(-1)
+            self.allinPlayers += [self.rotation.pop(-1)]
         else:
             print("Player", self.rotation[-1].name, "is big blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", self.rotation[-1].chips, "chips.\n")
             self.rotation[-1].Allin()
-            self.allinPlayers += self.rotation[-1]
-            self.rotation.remove(-1)
+            self.allinPlayers += [self.rotation.pop(-1)]
 
         # Set the currentBet to the highest bet made by the players in the blinds and create the pots
         self.currentBet = max(self.rotation[-2].bet, self.rotation[-1].bet)
         self.createPots()
 
-        self.playerInfo()
+        self.playerInfo(self.Players)
         self.potInfo()
     
     def createPots(self):
@@ -269,20 +274,117 @@ class Table:
 
             # Move the player to resolvedAllinPlayers
             self.resolvedAllinPlayers += [player]
-            self.allinPlayers.remove(player)
+        
+        self.allinPlayers = []
         
         # If there are no pots so far, create the main pot with the blinds
         if self.pots == []:
             self.pots += [Pot(self.rotation[-2].bet + self.rotation[-1].bet, self.rotation[-2:], True)]
 
-
-        
+    # TODO: Remove outer while loop, add in code for changing the pots
     def bettingRotation(self):
-        return 0
+        """ Handles a single betting rotation"""
+        for player in self.rotation:
+            while True:
+                self.potInfo
+                print("The current bet is", self.currentBet, "\n")
+                print(player)
 
-
-
-
+                # Player has not enough or just enough chips to match the current bet
+                if player.chips <= self.currentBet - player.bet:
+                    while True:
+                        x = str(input("Player", player.name, "what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold."))
+                        if x == 'c' or x == 'f':
+                            break
+                        # Debugger only command. Exits betting rotation function
+                        elif x == 'q' and debug == True:
+                            return
+                        # Invalid character entered
+                        else:
+                            print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
+                            continue
+                
+                # Player has enough chips to call but not to raise
+                elif player.chips < 2 * self.currentBet - player.bet:
+                    while True:
+                        x = str(input("Player", player.name, "what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold."))
+                        if x == 'c' or x == 'a' or x == 'f':
+                            break
+                        # Debugger only command. Exits betting rotation function
+                        elif x == 'q' and debug == True:
+                            return
+                        # Invalid character entered
+                        else:
+                            print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
+                            continue
+                else:
+                    while True:
+                        x = str(input("Player", player.name, "what action would you like to take? Type in 'c' to call/check, 'r' to raise, 'a' to go all in, or 'f' to fold. "))
+                        if x == 'c' or x == 'r' or x == 'a' or x == 'f':
+                            break
+                        # Debugger only command. Exits betting rotation function
+                        elif x == 'q' and debug == True:
+                            return
+                        # Invalid character entered
+                        else:
+                            print("Please input a valid character. 'c' to call, 'r' to raise, 'a' to go all-in, or 'f' to fold. \n")
+                            continue
+                
+                # Player calls/checks
+                if x == 'c':
+                    if self.currentBet == 0:
+                        print("Player", player.name, "has checked. \n")
+                        print(player)
+                        break
+                    elif self.currentBet - player.bet >= player.chips:
+                        player.Allin()
+                        self.allinPlayers += [player]
+                        self.rotation.remove(player)
+                        print(player)
+                        break
+                    else:
+                        print("Player", player.name, "has called. \n")
+                        player.call(self.currentBet)
+                        break
+                
+                # Player raises
+                elif x == 'r':
+                    while True:
+                        r = get_int("How much do you want to raise by?")
+                        if r == player.chips:
+                            player.Allin()
+                            self.allinPlayers += [player]
+                            self.rotation.remove(player)
+                            print(player)
+                            break
+                        elif r > player.chips:
+                            print("You do not have enough chips to raise by that amount. \n")
+                            continue
+                        elif r >= self.currentBet:
+                            player.Raise(self.currentBet, r)
+                            self.currentBet += r
+                            print("Player", player.name, "has raised to", self.currentBet, "\n")
+                            print(player)
+                            break
+                        else:
+                            print("You must raise by at least as much as the current bet:", self.currentBet,"\n")
+                            continue
+                
+                # Player goes all-in
+                elif x == 'a':
+                    player.Allin()
+                    if player.bet > self.currentBet:
+                        self.currentBet = player.bet
+                    self.allinPlayers += [player]
+                    self.rotation.remove(player)
+                    print(player)
+                    break
+                
+                # Player folds            
+                elif x == 'f':
+                    print("Player", players[i].name, "has folded. \n")
+                    rotation.remove(i)
+                    break
 
 
 def main():
@@ -548,7 +650,7 @@ def chipMerge(L1, L2):
     else:
         return [L1[0]] + [L2[0]]
 
-def preflopTest():
+def preflopTest1():
     # Initialize 5 example players and place them in a list
     p1 = Player("Andrew", 100)
     p2 = Player("Brett", 100)
@@ -559,6 +661,25 @@ def preflopTest():
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
     table = Table(players, smallBlind = 1, bigBlind = 2)
+
+    # Do a preflop runthrough
+    round = 1
+    print("\nRound", round)
+
+    table.getPreFlopRotation(round)
+    table.preflop()
+
+def preflopTest2():
+    # Initialize 5 example players and place them in a list
+    p1 = Player("Andrew", 100)
+    p2 = Player("Brett", 100)
+    p3 = Player("Cindy", 200)
+    p4 = Player("Deandra", 100)
+    p5 = Player("Egbert", 100)
+    players = [p1, p2, p3, p4, p5]
+
+    # Initialize a table with these players, a small blind of 1 and a big blind of 2
+    table = Table(players, smallBlind = 100, bigBlind = 200)
 
     # Do a preflop runthrough
     round = 1
