@@ -9,13 +9,14 @@ class Player:
     """ Creates a representation of a player according to 4 traits: 
     their name, how many chips they have, their current bet, whether 
     or not they've won the current pot, and whether or not they've folded."""
-    def __init__(self, name = '', chips = 0, bet = 0, won = False, folded = False, allin = False):
+    def __init__(self, name = '', chips = 0, bet = 0, won = False, folded = False, allin = False, canBet = True):
         self.name = name
         self.chips = chips
         self.bet = bet
         self.won = won
         self.folded = folded
         self.allin = allin
+        self.canBet = canBet
     
     def __repr__(self):
         """ Returns a string describing the given player"""
@@ -287,105 +288,129 @@ class Table:
         # Set the latest pot's currentPot flag to True
         self.pots[-1].currentPot = True
 
-    # TODO: Research on iterators in python, so that I can remove players from rotation without skipping other players in the bettingRotation process
     def bettingRotation(self):
         """ Handles a single betting rotation"""
-        for player in self.rotation:
-            self.playerInfo(self.rotation)
-            self.potInfo()
-            print("The current bet is", self.currentBet, "\n")
-            print(player)
+        
+        # Continue until all bets are settled
+        while True:
+            for player in self.rotation:
+                # If the player is not allowed to bet, continue to the next iteration
+                if not player.canBet:
+                    continue 
+                
+                # Print info
+                self.playerInfo(self.rotation)
+                self.potInfo()
+                print("The current bet is", self.currentBet, "\n")
+                print(player)
 
-            # Player has not enough or just enough chips to match the current bet
-            if player.chips <= self.currentBet - player.bet:
-                while True:
-                    x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold."))
-                    if x == 'c' or x == 'f':
-                        break
-                    # Debugger only command. Exits betting rotation function
-                    elif x == 'q' and debug == True:
-                        return
-                    # Invalid character entered
-                    else:
-                        print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
-                        continue
-            
-            # Player has enough chips to call but not to raise
-            elif player.chips < 2 * self.currentBet - player.bet:
-                while True:
-                    x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold."))
-                    if x == 'c' or x == 'a' or x == 'f':
-                        break
-                    # Debugger only command. Exits betting rotation function
-                    elif x == 'q' and debug == True:
-                        return
-                    # Invalid character entered
-                    else:
-                        print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
-                        continue
-            else:
-                while True:
-                    x = str(input(player.name + ", what action would you like to take? Type in 'c' to call/check, 'r' to raise, 'a' to go all in, or 'f' to fold. "))
-                    if x == 'c' or x == 'r' or x == 'a' or x == 'f':
-                        break
-                    # Debugger only command. Exits betting rotation function
-                    elif x == 'q' and debug == True:
-                        return
-                    # Invalid character entered
-                    else:
-                        print("Please input a valid character. 'c' to call, 'r' to raise, 'a' to go all-in, or 'f' to fold. \n")
-                        continue
-            
-            # Player calls/checks
-            if x == 'c':
-                if self.currentBet == 0:
-                    print("Player", player.name, "has checked. \n")
-                elif self.currentBet - player.bet >= player.chips:
-                    player.Allin()
-                    self.allinPlayers += [player]
-                    self.rotation.remove(player)
-                    print(player)
+                # Player has not enough or just enough chips to match the current bet
+                if player.chips <= self.currentBet - player.bet:
+                    while True:
+                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold."))
+                        if x == 'c' or x == 'f':
+                            break
+                        # Debugger only command. Exits betting rotation function
+                        elif x == 'q' and debug == True:
+                            return
+                        # Invalid character entered
+                        else:
+                            print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
+                            continue
+                
+                # Player has enough chips to call but not to raise
+                elif player.chips < 2 * self.currentBet - player.bet:
+                    while True:
+                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold."))
+                        if x == 'c' or x == 'a' or x == 'f':
+                            break
+                        # Debugger only command. Exits betting rotation function
+                        elif x == 'q' and debug == True:
+                            return
+                        # Invalid character entered
+                        else:
+                            print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
+                            continue
                 else:
-                    print("Player", player.name, "has called. \n")
-                    player.Call(self.currentBet)
-                    self.stay(player)
-            
-            # Player raises
-            elif x == 'r':
-                while True:
-                    r = get_int("How much do you want to raise by? ")
-                    if r == player.chips:
+                    while True:
+                        x = str(input(player.name + ", what action would you like to take? Type in 'c' to call/check, 'r' to raise, 'a' to go all in, or 'f' to fold. "))
+                        if x == 'c' or x == 'r' or x == 'a' or x == 'f':
+                            break
+                        # Debugger only command. Exits betting rotation function
+                        elif x == 'q' and debug == True:
+                            return
+                        # Invalid character entered
+                        else:
+                            print("Please input a valid character. 'c' to call, 'r' to raise, 'a' to go all-in, or 'f' to fold. \n")
+                            continue
+                
+                # Player calls/checks
+                if x == 'c':
+                    if self.currentBet == 0:
+                        print("Player", player.name, "has checked. \n")
+                    elif self.currentBet - player.bet >= player.chips:
                         player.Allin()
                         self.allinPlayers += [player]
                         self.rotation.remove(player)
                         print(player)
-                        break
-                    elif r > player.chips:
-                        print("You do not have enough chips to raise by that amount. \n")
-                        continue
-                    elif r >= self.currentBet:
-                        player.Raise(self.currentBet, r)
-                        self.stay(player)
-                        self.currentBet += r
-                        print("Player", player.name, "has raised to", self.currentBet, "\n")
-                        break
                     else:
-                        print("You must raise by at least as much as the current bet:", self.currentBet,"\n")
-                        continue
+                        print("Player", player.name, "has called. \n")
+                        player.Call(self.currentBet)
+                        self.stay(player)
+                
+                # Player raises
+                elif x == 'r':
+                    while True:
+                        # Re-allow the last player to bet
+                        self.rotation[-1].canBet = True
+
+                        r = get_int("How much do you want to raise by? ")
+                        if r == player.chips:
+                            player.Allin()
+                            self.allinPlayers += [player]
+                            self.rotation.remove(player)
+                            print(player)
+                            break
+                        elif r > player.chips:
+                            print("You do not have enough chips to raise by that amount. \n")
+                            continue
+                        elif r >= self.currentBet:
+                            player.Raise(self.currentBet, r)
+                            self.stay(player)
+                            self.currentBet += r
+                            print("Player", player.name, "has raised to", self.currentBet, "\n")
+                            break
+                        else:
+                            print("You must raise by at least as much as the current bet:", self.currentBet,"\n")
+                            continue
+                
+                # Player goes all-in
+                elif x == 'a':
+                    player.Allin()
+                    if player.bet > self.currentBet:
+                        self.currentBet = player.bet
+                    self.allinPlayers += [player]
+                    self.rotation.remove(player)
+                    print(player)
+                
+                # Player folds            
+                elif x == 'f':
+                    self.fold(player)
+                    print("Player", player.name, "has folded. \n")
             
-            # Player goes all-in
-            elif x == 'a':
-                player.Allin()
-                if player.bet > self.currentBet:
-                    self.currentBet = player.bet
-                self.allinPlayers += [player]
+            # Remove folded players from rotation
+            for player in self.foldedPlayers:
                 self.rotation.remove(player)
-                print(player)
             
-            # Player folds            
-            elif x == 'f':
-                self.fold(player)
-                print("Player", player.name, "has folded. \n")
+            # Clear foldedPlayers
+            self.foldedPlayers = []
+
+            # If everyone left in the rotation matches the current bet, end the rotation
+            if all(player.bet == self.currentBet for player in self.rotation):
+                break
+            
+            # Prevent the last player from betting at the end of the next cycle (unless someone raises again)
+            self.rotation[-1].canBet = False
 
     def stay(self, stayPlayer):
         """ Changes the pots to represent a player calling or raising"""
@@ -407,8 +432,8 @@ class Table:
         # Remove the folded player from all the pots
         for pot in self.pots:
             pot.removePlayer(foldPlayer)
-        # Remove them from the rotation
-        self.rotation.remove(foldPlayer)
+        # Add them to the folded players list
+        self.foldedPlayers += [foldPlayer]
     
     def allIn(self, allinPlayer):
         return 0
