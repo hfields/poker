@@ -5,6 +5,8 @@ import functools
 
 debug = True
 
+# TODO: Consider whether or not there are more opportunities to use dictionaries
+
 class Player:
     """ Creates a representation of a player according to 4 traits: 
     their name, how many chips they have, their current bet, whether 
@@ -58,12 +60,16 @@ class Player:
 class Pot:
     """ Creates a representation of a pot. This includes the number of chips
     in the pot, the number of chips per player, a list of the players in the
-    pot, whether the pot is the main pot or a side pot, and whether or not
-    the pot is the current pot
+    pot, the contributions each player has made to the pot, whether the pot 
+    is the main pot or a side pot, and whether or not the pot is the current 
+    pot
     """
     def __init__(self, amount = 0, Players = [], mainPot = True, currentPot = False):
         self.amount = amount
         self.Players = Players
+        self.contributions = {}
+        for player in Players:
+            self.contributions[player] = player.bet
         self.amountPerPlayer = amount // len(Players)
         self.mainPot = mainPot
         self.currentPot = currentPot
@@ -91,23 +97,44 @@ class Pot:
         else:
             return s + " (side pot)."
     
-    def increaseBet(self, inc):
-        """ Increases the bet required to stay in the pot (amountPerPlayer) by inc"""
+    def setAmountPerPlayer(self, newAmount):
+        """ Sets the amountPerPlayer to a certain amount"""
+        self.amountPerPlayer = newAmount
+
+    def increaseBet(self, raisePlayer, inc):
+        """ Increases the bet required to stay in the pot (amountPerPlayer) by inc
+        and adjusts the contribution of the player raising accordingly"""
+        self.amount += inc
+        self.contributions[raisePlayer] += inc
         self.amountPerPlayer += inc
 
-    def addPlayer(self, newPlayer):
+    def addPlayer(self, newPlayer, currentBet):
         """ Adds a player to the pot by increasing the amount by that player's
         bet, adding that player to the list of players in the pot, and changing
-        amountPerPlayer as needed"""
-        self.amount += newPlayer.bet
-        if self.currentPot:
-            self.increaseBet(newPlayer.bet - self.amountPerPlayer)
-        self.Players += [newPlayer]
+        amountPerPlayer as needed. If the pot is not the current pot, we just
+        change the amount in the pot by amountPerPlayer"""
+        if self.currentPot and newPlayer.bet > currentBet:
+            self.amount += newPlayer.bet - currentBet
+            self.Players += [newPlayer]
+            self.contributions[newPlayer] = 0
+            self.increaseBet(newPlayer, newPlayer.bet - currentBet)
+        else:
+            self.amount += self.amountPerPlayer
+            self.Players += [newPlayer]
+            self.contributions[newPlayer] = self.amountPerPlayer
+    
+    def stayIn(self, stayPlayer):
+        """ Increases the given player's contribution to this pot to the
+        amountPerPlayer, and changes the amount in the pot accordingly"""
+        self.amount += self.amountPerPlayer - self.contributions[stayPlayer]
+        self.contributions[stayPlayer] = self.amountPerPlayer
     
     def removePlayer(self, foldPlayer):
         """ Removes a player from the pot by removing that player from the list 
-        of players in the pot"""
+        of players in the pot and their contributions from the contribution 
+        dictionary"""
         if foldPlayer.inPot(self):
+            del self.contributions[foldPlayer]
             self.Players.remove(foldPlayer)
 
 
@@ -252,7 +279,13 @@ class Table:
             self.allinPlayers += [self.rotation.pop(-1)]
 
         # Set the currentBet to the highest bet made by the players in the blinds and create the pots
-        self.currentBet = max(self.rotation[-2].bet, self.rotation[-1].bet)
+        if self.allinPlayers == []:
+            self.currentBet = self.bigBlind
+        elif len(self.allinPlayers) == 1:
+            self.currentBet = max(self.rotation[-1].bet, self.allinPlayers[0].bet)
+        else:
+            self.currentBet = max(self.allinPlayers[0].bet, self.allinPlayers[1].bet)
+            
         self.createPots()
 
         #self.playerInfo(self.Players)
@@ -270,11 +303,11 @@ class Table:
             
             # If there are no pots so far, create the main pot
             if self.pots == []:
-                self.pots += [Pot(player.bet * (len(self.allinPlayers) - i), self.allinPlayers[i:], True)]
+                self.pots += [Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = True)]
             
             # Otherwise, create the next side pot
             else:
-                self.pots += [Pot(player.bet - self.pots[i - 1].amountPerPlayer * (len(self.allinPlayers) - i), self.allinPlayers[i:], False)]
+                self.pots += [Pot(amount = player.bet - self.pots[i - 1].amountPerPlayer * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = False)]
 
             # Move the player to resolvedAllinPlayers
             self.resolvedAllinPlayers += [player]
@@ -283,14 +316,24 @@ class Table:
         
         # If there are no pots so far, create the main pot with the blinds
         if self.pots == []:
-            self.pots += [Pot(self.rotation[-2].bet + self.rotation[-1].bet, self.rotation[-2:], True)]
+            self.pots += [Pot(amount = self.rotation[-2].bet + self.rotation[-1].bet, Players = self.rotation[-2:], mainPot = True)]
+            self.pots[-1].setAmountPerPlayer(self.bigBlind)
 
         # Set the latest pot's currentPot flag to True
         self.pots[-1].currentPot = True
+    
+    def addSidePot(self, newAmount, newPlayer):
+        """ Creates a new side pot to be the new current pot 
+        for the round"""
+        # Set currentPot to false for the old current pot
+        self.pots[-1].currentPot = False
+
+        # Add a new side pot with just the latest player in it
+        self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
+
 
     def bettingRotation(self):
         """ Handles a single betting rotation"""
-        
         # Continue until all bets are settled
         while True:
             for player in self.rotation:
@@ -366,9 +409,7 @@ class Table:
 
                         r = get_int("How much do you want to raise by? ")
                         if r == player.chips:
-                            player.Allin()
-                            self.allinPlayers += [player]
-                            self.rotation.remove(player)
+                            self.allIn(player)
                             print(player)
                             break
                         elif r > player.chips:
@@ -386,11 +427,7 @@ class Table:
                 
                 # Player goes all-in
                 elif x == 'a':
-                    player.Allin()
-                    if player.bet > self.currentBet:
-                        self.currentBet = player.bet
-                    self.allinPlayers += [player]
-                    self.rotation.remove(player)
+                    self.allIn(player)
                     print(player)
                 
                 # Player folds            
@@ -402,8 +439,14 @@ class Table:
             for player in self.foldedPlayers:
                 self.rotation.remove(player)
             
-            # Clear foldedPlayers
+            # Remove all-in players from rotation and move them from allinPlayers to resolved players
+            for player in self.allinPlayers:
+                self.rotation.remove(player)
+                self.resolvedAllinPlayers += player
+
+            # Clear foldedPlayers and allinPlayers
             self.foldedPlayers = []
+            self.allinPlayers = []
 
             # If everyone left in the rotation matches the current bet, end the rotation
             if all(player.bet == self.currentBet for player in self.rotation):
@@ -417,15 +460,28 @@ class Table:
         # Add the player to any pots below the current pot that the player is not already in
         for pot in self.pots[:-1]:
             if not stayPlayer.inPot(pot):
-                pot.addPlayer(stayPlayer)
+                pot.addPlayer(stayPlayer, self.currentBet)
 
         # Add the player to the current pot if they aren't in it        
         if not stayPlayer.inPot(self.pots[-1]):
-            self.pots[-1].addPlayer(stayPlayer)
+            # If there are any all-in players in the current pot and stayPlayer has raised, create a new side pot
+            if not all(not player.allin for player in self.rotation) and stayPlayer.bet > self.currentBet:
+                self.addSidePot(stayPlayer.bet - self.currentBet, stayPlayer)
+                self.pots[-2].addPlayer(stayPlayer, self.currentBet)
+            else:
+                self.pots[-1].addPlayer(stayPlayer, self.currentBet)
 
         # If they are, increase the bet to stay in the pot as necessary
         else:
-            self.pots[-1].increaseBet(stayPlayer.bet - self.currentBet)
+            # If there are any all-in players in the current pot and stayPlayer has raised, create a new side pot
+            if not all(not player.allin for player in self.rotation) and stayPlayer.bet > self.currentBet:
+                self.addSidePot(stayPlayer.bet - self.currentBet, stayPlayer)
+                self.pots[-2].addPlayer(stayPlayer, self.currentBet)
+            else:
+                if stayPlayer.bet > self.currentBet:
+                    self.pots[-1].increaseBet(stayPlayer, stayPlayer.bet - self.currentBet)
+                else:
+                    self.pots[-1].stayIn(stayPlayer)
     
     def fold(self, foldPlayer):
         """ Changes the pots and table to reflect a player folding"""
@@ -436,7 +492,10 @@ class Table:
         self.foldedPlayers += [foldPlayer]
     
     def allIn(self, allinPlayer):
-        return 0
+        allinPlayer.allIn()
+        if allinPlayer.bet > self.currentBet:
+            self.currentBet = allinPlayer.bet
+        self.allinPlayers += [allinPlayer]
 
 def main():
     # Initialize the poker table
