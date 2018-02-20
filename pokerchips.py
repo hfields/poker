@@ -5,8 +5,6 @@ import functools
 
 debug = True
 
-# TODO: Consider whether or not there are more opportunities to use dictionaries
-
 class Player:
     """ Creates a representation of a player according to 4 traits: 
     their name, how many chips they have, their current bet, whether 
@@ -22,8 +20,10 @@ class Player:
     
     def __repr__(self):
         """ Returns a string describing the given player"""
-        if self.allin == True:
+        if self.allin:
             return "Player " + self.name + " is all in with " + str(self.bet) + " chips."
+        elif self.folded:
+            return "Player " + self.name + " has folded."
         else:
             return "Player " + self.name + " has " + str(self.chips) + " chips and is betting " + str(self.bet) + " chips."
 
@@ -46,11 +46,15 @@ class Player:
         self.chips -= currentBet + raiseAmount - self.bet
         self.bet = currentBet + raiseAmount
 
-    def Allin(self):
+    def allIn(self):
         """ Increase a player's bet so that they are all-in"""
         self.allin = True
         self.bet += self.chips
         self.chips = 0
+    
+    def fold(self):
+        """ Set a player's folded flag to True"""
+        self.folded = True
 
     def inPot(self, pot):
         """ Return True if the player is in a certain pot, False
@@ -103,10 +107,23 @@ class Pot:
 
     def increaseBet(self, raisePlayer, inc):
         """ Increases the bet required to stay in the pot (amountPerPlayer) by inc
-        and adjusts the contribution of the player raising accordingly"""
-        self.amount += inc
-        self.contributions[raisePlayer] += inc
-        self.amountPerPlayer += inc
+        and adjusts the amount of chips in the pot and contribution of the player 
+        raising accordingly"""
+        # Only allow the bet to be raised for the current Pot
+        if self.currentPot:
+            self.amount += inc
+            self.contributions[raisePlayer] += inc
+            self.amountPerPlayer += inc
+
+    def reduceBet(self, dec):
+        """ Reduces the bet required to stay in the pot (amountPerPlayer) by dec
+        and adjusts the amount of chips in the pot and the contributions of each
+        player accordingly"""
+        self.amountPerPlayer -= dec
+
+        for player in self.Players:
+            self.amount -= dec
+            self.contributions[player] -= dec
 
     def addPlayer(self, newPlayer, currentBet):
         """ Adds a player to the pot by increasing the amount by that player's
@@ -331,6 +348,14 @@ class Table:
         # Add a new side pot with just the latest player in it
         self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
 
+    def insertPot(self, newPlayer, newAmount, nextPot):
+        """ Create a new pot right before the nextPot""" 
+        # Reduce the bet of nextPot to adjust for the addition of the new Pot  
+        nextPot.reduceBet(nextPot.amountPerPlayer - newAmount)
+
+        # Add a new Pot to add to self.pots
+        i = self.pots.index(nextPot)
+        self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
 
     def bettingRotation(self):
         """ Handles a single betting rotation"""
@@ -456,7 +481,7 @@ class Table:
             self.rotation[-1].canBet = False
 
     def stay(self, stayPlayer):
-        """ Changes the pots to represent a player calling or raising"""
+        """ Makes a player call/raise and changes the pots accordingly"""
         # Add the player to any pots below the current pot that the player is not already in
         for pot in self.pots[:-1]:
             if not stayPlayer.inPot(pot):
@@ -465,7 +490,7 @@ class Table:
         # Add the player to the current pot if they aren't in it        
         if not stayPlayer.inPot(self.pots[-1]):
             # If there are any all-in players in the current pot and stayPlayer has raised, create a new side pot
-            if not all(not player.allin for player in self.rotation) and stayPlayer.bet > self.currentBet:
+            if not all(not player.allin for player in self.pots[-1].Players) and stayPlayer.bet > self.currentBet:
                 self.addSidePot(stayPlayer.bet - self.currentBet, stayPlayer)
                 self.pots[-2].addPlayer(stayPlayer, self.currentBet)
             else:
@@ -474,7 +499,7 @@ class Table:
         # If they are, increase the bet to stay in the pot as necessary
         else:
             # If there are any all-in players in the current pot and stayPlayer has raised, create a new side pot
-            if not all(not player.allin for player in self.rotation) and stayPlayer.bet > self.currentBet:
+            if not all(not player.allin for player in self.pots[-1].Players) and stayPlayer.bet > self.currentBet:
                 self.addSidePot(stayPlayer.bet - self.currentBet, stayPlayer)
                 self.pots[-2].addPlayer(stayPlayer, self.currentBet)
             else:
@@ -483,19 +508,54 @@ class Table:
                 else:
                     self.pots[-1].stayIn(stayPlayer)
     
+    def allIn(self, allinPlayer):
+        """ Puts a player all-in and changes the pots accordingly"""
+        allinPlayer.allIn()
+
+        # Initialize a sum to keep track of how many chips are needed to get into each successive pot
+        betSum = 0
+
+        # Iterate through all pots but the last
+        for pot in self.pots:
+            # Skip if the player is already in the pot
+            if not allinPlayer.inPot(pot):
+                # If the player has the exact amount of chips needed to get into the pot, add them and break 
+                if allinPlayer.bet == betSum + pot.amountPerPlayer:
+                    pot.addPlayer(allinPlayer, self.currentBet)
+                    betSum += pot.amountPerPlayer
+                    break
+
+                # If the player has more than the amount of chips needed to get into the pot, add them
+                elif allinPlayer.bet > betSum + pot.amountPerPlayer:
+                    pot.addPlayer(allinPlayer, self.currentBet)
+                    betSum += pot.amountPerPlayer
+
+                # If the player has less than the amount of chips needed to get into the pot, create a new pot
+                else:
+                    self.insertPot(allinPlayer, allinPlayer - betSum, pot)
+                    break
+            
+            else:
+                # If we are not in the currentPot stay in the pot
+                if not pot.currentPot:
+                    pot.stayIn(allinPlayer)
+                    betSum += pot.amountPerPlayer
+
+        # If the player has raised with their all-in, increase the currentBet
+        if allinPlayer.bet > self.currentBet:
+            self.currentBet = allinPlayer.bet
+
+        self.allinPlayers += [allinPlayer]
+    
     def fold(self, foldPlayer):
-        """ Changes the pots and table to reflect a player folding"""
+        """ Folds a player from the pots and changes the pots accordingly"""
+        # Set the folded flag
+        foldPlayer.fold()
         # Remove the folded player from all the pots
         for pot in self.pots:
             pot.removePlayer(foldPlayer)
         # Add them to the folded players list
         self.foldedPlayers += [foldPlayer]
-    
-    def allIn(self, allinPlayer):
-        allinPlayer.allIn()
-        if allinPlayer.bet > self.currentBet:
-            self.currentBet = allinPlayer.bet
-        self.allinPlayers += [allinPlayer]
 
 def main():
     # Initialize the poker table
