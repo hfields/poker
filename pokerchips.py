@@ -140,19 +140,28 @@ class Pot:
             self.Players += [newPlayer]
             self.contributions[newPlayer] = self.amountPerPlayer
     
-    def stayIn(self, stayPlayer):
+    def stayIn(self, allinPlayer):
         """ Increases the given player's contribution to this pot to the
         amountPerPlayer, and changes the amount in the pot accordingly"""
-        self.amount += self.amountPerPlayer - self.contributions[stayPlayer]
-        self.contributions[stayPlayer] = self.amountPerPlayer
+        self.amount += self.amountPerPlayer - self.contributions[allinPlayer]
+        self.contributions[allinPlayer] = self.amountPerPlayer
     
-    def removePlayer(self, foldPlayer):
-        """ Removes a player from the pot by removing that player from the list 
+    def foldPlayer(self, fPlayer):
+        """ Folds a player from the pot by removing that player from the list 
         of players in the pot and their contributions from the contribution 
         dictionary"""
-        if foldPlayer.inPot(self):
-            del self.contributions[foldPlayer]
-            self.Players.remove(foldPlayer)
+        if fPlayer.inPot(self):
+            del self.contributions[fPlayer]
+            self.Players.remove(fPlayer)
+
+    def removePlayer(self, remPlayer):
+        """ Removes a player from the pot by removing that player from the list 
+        of players in the pot and their contributions from the contribution 
+        dictionary, then reducing the amount of the pot"""
+        if remPlayer.inPot(self):
+            self.amount -= self.contributions[remPlayer]
+            del self.contributions[remPlayer]
+            self.Players.remove(remPlayer)
 
 
 class Table:
@@ -275,11 +284,11 @@ class Table:
             self.rotation[-2].Call(self.smallBlind)
         elif self.rotation[-2].chips == self.smallBlind:
             print("Player", self.rotation[-2].name, "is small blind, and is all in with", self.smallBlind, "chips.")
-            self.rotation[-2].Allin()
+            self.rotation[-2].allIn()
             self.allinPlayers += [self.rotation.pop(-2)]
         else:
             print("Player", self.rotation[-2].name, "is small blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", self.rotation[-2].chips, "chips.")
-            self.rotation[-2].Allin()
+            self.rotation[-2].allIn()
             self.allinPlayers += [self.rotation.pop(-2)]
         
         # Handle big blind
@@ -288,11 +297,11 @@ class Table:
             self.rotation[-1].Call(self.bigBlind)
         elif self.rotation[-1].chips == self.bigBlind:
             print("Player", self.rotation[-1].name, "is big blind, and is all in with", self.bigBlind, "chips.\n")
-            self.rotation[-1].Allin()
+            self.rotation[-1].allIn()
             self.allinPlayers += [self.rotation.pop(-1)]
         else:
             print("Player", self.rotation[-1].name, "is big blind, but they do not have enough chips to bet the full amount. Instead, they are all-in with a bet of", self.rotation[-1].chips, "chips.\n")
-            self.rotation[-1].Allin()
+            self.rotation[-1].allIn()
             self.allinPlayers += [self.rotation.pop(-1)]
 
         # Set the currentBet to the highest bet made by the players in the blinds and create the pots
@@ -375,7 +384,7 @@ class Table:
                 # Player has not enough or just enough chips to match the current bet
                 if player.chips <= self.currentBet - player.bet:
                     while True:
-                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold."))
+                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold. "))
                         if x == 'c' or x == 'f':
                             break
                         # Debugger only command. Exits betting rotation function
@@ -389,7 +398,7 @@ class Table:
                 # Player has enough chips to call but not to raise
                 elif player.chips < 2 * self.currentBet - player.bet:
                     while True:
-                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold."))
+                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold. "))
                         if x == 'c' or x == 'a' or x == 'f':
                             break
                         # Debugger only command. Exits betting rotation function
@@ -414,12 +423,13 @@ class Table:
                 
                 # Player calls/checks
                 if x == 'c':
+                    # Prevent the player from betting again until someone else raises
+                    player.canBet = False
+
                     if self.currentBet == 0:
                         print("Player", player.name, "has checked. \n")
                     elif self.currentBet - player.bet >= player.chips:
-                        player.Allin()
-                        self.allinPlayers += [player]
-                        self.rotation.remove(player)
+                        player.allIn()
                         print(player)
                     else:
                         print("Player", player.name, "has called. \n")
@@ -429,8 +439,12 @@ class Table:
                 # Player raises
                 elif x == 'r':
                     while True:
-                        # Re-allow the last player to bet
-                        self.rotation[-1].canBet = True
+                        # Re-allow all other players to bet
+                        for betPlayer in self.Players:
+                            betPlayer.canBet = True
+                        
+                        # Prevent the player from betting again until someone else raises
+                        player.canBet = False
 
                         r = get_int("How much do you want to raise by? ")
                         if r == player.chips:
@@ -458,7 +472,7 @@ class Table:
                 # Player folds            
                 elif x == 'f':
                     self.fold(player)
-                    print("Player", player.name, "has folded. \n")
+                    print(player)
             
             # Remove folded players from rotation
             for player in self.foldedPlayers:
@@ -476,9 +490,6 @@ class Table:
             # If everyone left in the rotation matches the current bet, end the rotation
             if all(player.bet == self.currentBet for player in self.rotation):
                 break
-            
-            # Prevent the last player from betting at the end of the next cycle (unless someone raises again)
-            self.rotation[-1].canBet = False
 
     def stay(self, stayPlayer):
         """ Makes a player call/raise and changes the pots accordingly"""
@@ -517,29 +528,82 @@ class Table:
 
         # Iterate through all pots but the last
         for pot in self.pots:
-            # Skip if the player is already in the pot
-            if not allinPlayer.inPot(pot):
-                # If the player has the exact amount of chips needed to get into the pot, add them and break 
-                if allinPlayer.bet == betSum + pot.amountPerPlayer:
-                    pot.addPlayer(allinPlayer, self.currentBet)
-                    betSum += pot.amountPerPlayer
-                    break
+            # Run a special case for the current Pot
+            if pot.currentPot:
+                # Actions will change based on whether or not the allinPlayer is in the pot
+                if allinPlayer.inPot(pot):
+                    # If the player has exactly the amount of chips to stay in the pot, keep them in
+                    if allinPlayer.bet == self.currentBet:
+                        pot.stayIn(allinPlayer)
 
-                # If the player has more than the amount of chips needed to get into the pot, add them
-                elif allinPlayer.bet > betSum + pot.amountPerPlayer:
-                    pot.addPlayer(allinPlayer, self.currentBet)
-                    betSum += pot.amountPerPlayer
+                    # If the player has less than the amount of chips needed to stay in the pot, remove them and
+                    # create a new pot
+                    elif allinPlayer.bet < self.currentBet:
+                        pot.removePlayer(allinPlayer)
+                        self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
 
-                # If the player has less than the amount of chips needed to get into the pot, create a new pot
+                    # If the player has more chips than the current bet, act as if the player has raised.
+                    else:
+                        # If there are any all-in players in the current pot and allinPlayer has raised, create a new side pot
+                        if not all(not player.allin for player in pot.Players):
+                            self.addSidePot(allinPlayer.bet - self.currentBet, allinPlayer)
+                            self.pots[-2].addPlayer(allinPlayer, self.currentBet)
+                        else:
+                            pot.increaseBet(allinPlayer, allinPlayer.bet - self.currentBet)
+
                 else:
-                    self.insertPot(allinPlayer, allinPlayer - betSum, pot)
-                    break
-            
+                    # If the player has the exact amount of chips needed to get into the pot, add them
+                    if allinPlayer.bet == self.currentBet:
+                        pot.addPlayer(allinPlayer)
+
+                    # If the player has less than the amount of chips needed to get into the pot, create a new pot
+                    elif allinPlayer.bet < self.currentBet:
+                        self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
+
+                    # If the player has more chips than the current bet, act as if the player has raised.
+                    else:
+                        # If there are any all-in players in the current pot and allinPlayer has raised, create a new side pot
+                        if not all(not player.allin for player in pot.Players):
+                            self.addSidePot(allinPlayer.bet - self.currentBet, allinPlayer)
+                            self.pots[-2].addPlayer(allinPlayer, self.currentBet)
+                        else:
+                            pot.addPlayer(allinPlayer, self.currentBet)
+
             else:
-                # If we are not in the currentPot stay in the pot
-                if not pot.currentPot:
-                    pot.stayIn(allinPlayer)
-                    betSum += pot.amountPerPlayer
+                # Actions will change based on whether or not the allinPlayer is in the pot
+                if allinPlayer.inPot(pot):
+                    # If the player is already fully in the pot, skip it
+                    if pot.contributions[allinPlayer] == pot.amountPerPlayer:
+                        betSum += pot.amountPerPlayer
+                    # If the player has the exact amount of chips needed to stay in the pot, add them and break 
+                    elif allinPlayer.bet == betSum + (pot.amountPerPlayer - pot.contributions[allinPlayer]):
+                        pot.stayIn(allinPlayer)
+                        betSum += pot.amountPerPlayer
+                        break
+
+                    # If the player has less than the amount of chips needed to stay in the pot, remove them and
+                    # create a new pot
+                    else:
+                        pot.removePlayer(allinPlayer)
+                        self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
+                        break
+                
+                else:
+                    # If the player has the exact amount of chips needed to get into the pot, add them and break 
+                    if allinPlayer.bet == betSum + pot.amountPerPlayer:
+                        pot.addPlayer(allinPlayer, self.currentBet)
+                        betSum += pot.amountPerPlayer
+                        break
+
+                    # If the player has more than the amount of chips needed to get into the pot, add them
+                    elif allinPlayer.bet > betSum + pot.amountPerPlayer:
+                        pot.addPlayer(allinPlayer, self.currentBet)
+                        betSum += pot.amountPerPlayer
+
+                    # If the player has less than the amount of chips needed to get into the pot, create a new pot
+                    else:
+                        self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
+                        break
 
         # If the player has raised with their all-in, increase the currentBet
         if allinPlayer.bet > self.currentBet:
@@ -553,7 +617,7 @@ class Table:
         foldPlayer.fold()
         # Remove the folded player from all the pots
         for pot in self.pots:
-            pot.removePlayer(foldPlayer)
+            pot.foldPlayer(foldPlayer)
         # Add them to the folded players list
         self.foldedPlayers += [foldPlayer]
 
@@ -637,6 +701,25 @@ def preflopTest2():
     p3 = Player("Cindy", 200)
     p4 = Player("Deandra", 100)
     p5 = Player("Egbert", 100)
+    players = [p1, p2, p3, p4, p5]
+
+    # Initialize a table with these players, a small blind of 1 and a big blind of 2
+    table = Table(players, smallBlind = 100, bigBlind = 200)
+
+    # Do a preflop runthrough
+    round = 1
+    print("\nRound", round)
+
+    table.getPreFlopRotation(round)
+    table.preflop()
+
+def preflopTest3():
+    # Initialize 5 example players and place them in a list
+    p1 = Player("Andrew", 500)
+    p2 = Player("Brett", 100)
+    p3 = Player("Cindy", 200)
+    p4 = Player("Deandra", 500)
+    p5 = Player("Egbert", 600)
     players = [p1, p2, p3, p4, p5]
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
