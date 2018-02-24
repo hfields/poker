@@ -131,7 +131,9 @@ class Pot:
         amountPerPlayer as needed. If the pot is not the current pot, we just
         change the amount in the pot by amountPerPlayer"""
         if self.currentPot and newPlayer.bet > currentBet:
-            self.amount += newPlayer.bet - currentBet
+            print(newPlayer.bet)
+            print(self.amount)
+            self.amount += self.amountPerPlayer
             self.Players += [newPlayer]
             self.contributions[newPlayer] = 0
             self.increaseBet(newPlayer, newPlayer.bet - currentBet)
@@ -314,57 +316,10 @@ class Table:
             
         self.createPots()
 
-        #self.playerInfo(self.Players)
-        #self.potInfo()
-
         self.bettingRotation()
-    
-    def createPots(self):
-        # Sort the allinPlayers from least to greatest
-        self.allinPlayers = chipMSort(self.allinPlayers)
-        
-        # Iterate through the players who are all-in but haven't had their bets put into pots yet
-        for player in self.allinPlayers:
-            i = self.allinPlayers.index(player)
-            
-            # If there are no pots so far, create the main pot
-            if self.pots == []:
-                self.pots += [Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = True)]
-            
-            # Otherwise, create the next side pot
-            else:
-                self.pots += [Pot(amount = player.bet - self.pots[i - 1].amountPerPlayer * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = False)]
 
-            # Move the player to resolvedAllinPlayers
-            self.resolvedAllinPlayers += [player]
-        
-        self.allinPlayers = []
-        
-        # If there are no pots so far, create the main pot with the blinds
-        if self.pots == []:
-            self.pots += [Pot(amount = self.rotation[-2].bet + self.rotation[-1].bet, Players = self.rotation[-2:], mainPot = True)]
-            self.pots[-1].setAmountPerPlayer(self.bigBlind)
-
-        # Set the latest pot's currentPot flag to True
-        self.pots[-1].currentPot = True
-    
-    def addSidePot(self, newAmount, newPlayer):
-        """ Creates a new side pot to be the new current pot 
-        for the round"""
-        # Set currentPot to false for the old current pot
-        self.pots[-1].currentPot = False
-
-        # Add a new side pot with just the latest player in it
-        self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
-
-    def insertPot(self, newPlayer, newAmount, nextPot):
-        """ Create a new pot right before the nextPot""" 
-        # Reduce the bet of nextPot to adjust for the addition of the new Pot  
-        nextPot.reduceBet(nextPot.amountPerPlayer - newAmount)
-
-        # Add a new Pot to add to self.pots
-        i = self.pots.index(nextPot)
-        self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
+        self.playerInfo(self.Players)
+        self.potInfo()
 
     def bettingRotation(self):
         """ Handles a single betting rotation"""
@@ -429,8 +384,9 @@ class Table:
                     if self.currentBet == 0:
                         print("Player", player.name, "has checked. \n")
                     elif self.currentBet - player.bet >= player.chips:
-                        player.allIn()
-                        print(player)
+                        print("Dongasaurus")
+                        self.allIn(player)
+                        print(player, "\n")
                     else:
                         print("Player", player.name, "has called. \n")
                         player.Call(self.currentBet)
@@ -447,11 +403,11 @@ class Table:
                         player.canBet = False
 
                         r = get_int("How much do you want to raise by? ")
-                        if r == player.chips:
+                        if r == player.chips - (self.currentBet - player.bet):
                             self.allIn(player)
-                            print(player)
+                            print(player, "\n")
                             break
-                        elif r > player.chips:
+                        elif r > player.chips - (self.currentBet - player.bet):
                             print("You do not have enough chips to raise by that amount. \n")
                             continue
                         elif r >= self.currentBet:
@@ -467,12 +423,12 @@ class Table:
                 # Player goes all-in
                 elif x == 'a':
                     self.allIn(player)
-                    print(player)
+                    print(player, "\n")
                 
                 # Player folds            
                 elif x == 'f':
                     self.fold(player)
-                    print(player)
+                    print(player, "\n")
             
             # Remove folded players from rotation
             for player in self.foldedPlayers:
@@ -481,7 +437,7 @@ class Table:
             # Remove all-in players from rotation and move them from allinPlayers to resolved players
             for player in self.allinPlayers:
                 self.rotation.remove(player)
-                self.resolvedAllinPlayers += player
+                self.resolvedAllinPlayers += [player]
 
             # Clear foldedPlayers and allinPlayers
             self.foldedPlayers = []
@@ -554,7 +510,7 @@ class Table:
                 else:
                     # If the player has the exact amount of chips needed to get into the pot, add them
                     if allinPlayer.bet == self.currentBet:
-                        pot.addPlayer(allinPlayer)
+                        pot.addPlayer(allinPlayer, self.currentBet)
 
                     # If the player has less than the amount of chips needed to get into the pot, create a new pot
                     elif allinPlayer.bet < self.currentBet:
@@ -620,6 +576,53 @@ class Table:
             pot.foldPlayer(foldPlayer)
         # Add them to the folded players list
         self.foldedPlayers += [foldPlayer]
+
+    def createPots(self):
+        # Sort the allinPlayers from least to greatest
+        self.allinPlayers = chipMSort(self.allinPlayers)
+        
+        # Iterate through the players who are all-in but haven't had their bets put into pots yet
+        for player in self.allinPlayers:
+            i = self.allinPlayers.index(player)
+            
+            # If there are no pots so far, create the main pot
+            if self.pots == []:
+                self.pots += [Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = True)]
+            
+            # Otherwise, create the next side pot
+            else:
+                self.pots += [Pot(amount = player.bet - self.pots[i - 1].amountPerPlayer * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = False)]
+
+            # Move the player to resolvedAllinPlayers
+            self.resolvedAllinPlayers += [player]
+        
+        self.allinPlayers = []
+        
+        # If there are no pots so far, create the main pot with the blinds
+        if self.pots == []:
+            self.pots += [Pot(amount = self.rotation[-2].bet + self.rotation[-1].bet, Players = self.rotation[-2:], mainPot = True)]
+            self.pots[-1].setAmountPerPlayer(self.bigBlind)
+
+        # Set the latest pot's currentPot flag to True
+        self.pots[-1].currentPot = True
+    
+    def addSidePot(self, newAmount, newPlayer):
+        """ Creates a new side pot to be the new current pot 
+        for the round"""
+        # Set currentPot to false for the old current pot
+        self.pots[-1].currentPot = False
+
+        # Add a new side pot with just the latest player in it
+        self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
+
+    def insertPot(self, newPlayer, newAmount, nextPot):
+        """ Create a new pot right before the nextPot""" 
+        # Reduce the bet of nextPot to adjust for the addition of the new Pot  
+        nextPot.reduceBet(nextPot.amountPerPlayer - newAmount)
+
+        # Add a new Pot to add to self.pots
+        i = self.pots.index(nextPot)
+        self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
 
 def main():
     # Initialize the poker table
