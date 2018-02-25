@@ -165,11 +165,11 @@ class Pot:
             del self.contributions[remPlayer]
             self.Players.remove(remPlayer)
 
-    def resolvePot(self, winPlayer):
+    def resolve(self, winPlayer):
         """ Resolves the pot in favor of the winPlayer"""
         winPlayer.won = True
         for player in self.Players:
-            player.resolveBet(amount)
+            player.resolveBet(self.amount)
 
 class Table:
     """ Creates a representation of a poker table. This includes 5 lists of 
@@ -196,6 +196,8 @@ class Table:
         """ When deleting the Table, delete all of the Players within it as well."""
         for player in self.Players:
             del player
+        for pot in self.pots:
+            del pot
 
     def getPlayerByString(self, name):
         """ Returns the player whose name matches the given
@@ -316,14 +318,16 @@ class Table:
     def getRotation(self, round):
         """ Uses the round number to determine the betting rotation."""
         # Set indices in player list for the dealer
-        playerCount = len(self.Players)
+        playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
         dealer = round % playerCount - 1
 
         # Create a list of player indices in their regular rotation order
         for i in range(dealer + 1, playerCount):
-            self.rotation += [self.Players[i]]
+            if not self.Players[i] in self.foldedPlayers and not self.Players[i] in self.resolvedAllinPlayers:
+                self.rotation += [self.Players[i]]
         for i in range(dealer + 1):
-            self.rotation += [self.Players[i]]
+            if not self.Players[i] in self.foldedPlayers and not self.Players[i] in self.resolvedAllinPlayers:
+                self.rotation += [self.Players[i]]
 
     def preflop(self):
         """ Handles the pre-flop betting rotation"""
@@ -368,14 +372,17 @@ class Table:
         # Print info
         self.playerInfo(self.Players)
         self.potInfo()
+        print("\n")
 
     def postflop(self):
         """ Handles betting rotations past the pre-flop rotation"""
+        self.currentBet = 0
         self.bettingRotation()
 
         # Print info
         self.playerInfo(self.Players)
         self.potInfo()
+        print("\n")
 
     def resolvePots(self):
         """ Resolves all of pots at the end of a round."""
@@ -518,15 +525,15 @@ class Table:
             
             # Remove folded players from rotation
             for player in self.foldedPlayers:
-                self.rotation.remove(player)
+                if player in self.rotation:
+                    self.rotation.remove(player)
             
             # Remove all-in players from rotation and move them from allinPlayers to resolved players
             for player in self.allinPlayers:
                 self.rotation.remove(player)
                 self.resolvedAllinPlayers += [player]
 
-            # Clear foldedPlayers and allinPlayers
-            self.foldedPlayers = []
+            # Clear allinPlayers
             self.allinPlayers = []
 
             # If everyone left in the rotation matches the current bet, end the rotation
@@ -730,17 +737,18 @@ def main():
 
         # Flop
         if (not table.allPlayersAllin()):
-            table.getRotation()
+            print("Yep")
+            table.getRotation(round)
             table.postflop()
 
         # Turn
         if (not table.allPlayersAllin()):
-            table.getRotation()
+            table.getRotation(round)
             table.postflop()
 
         # River
         if (not table.allPlayersAllin()):
-            table.getRotation()
+            table.getRotation(round)
             table.postflop()
 
         # Resolve bets
@@ -752,7 +760,7 @@ def main():
             print("Player", winner.name, "has won!")
             break
 
-    del Table
+    del table
 
 
 
