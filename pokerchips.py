@@ -170,6 +170,9 @@ class Pot:
         winPlayer.won = True
         for player in self.Players:
             player.resolveBet(self.amount)
+        
+        # Reset won flag
+        winPlayer.won = False
 
 class Table:
     """ Creates a representation of a poker table. This includes 5 lists of 
@@ -293,12 +296,12 @@ class Table:
             else:
                 print("Big blind cannot be greater than the amount of chips each player starts with.\n")
                 continue
-
-    def getPreFlopRotation(self, round):
-        """ Uses the round number to determine the (pre-flop) betting rotation."""
+    
+    def getPreFlopRotation(self, Round):
+        """ Uses the Round number to determine the (pre-flop) betting rotation."""
         # Set indices in player list for dealer and blinds
         playerCount = len(self.Players)
-        dealer = round % playerCount - 1
+        dealer = Round % playerCount - 1
 
         if (playerCount > 2):
             blind1 = dealer + 1
@@ -315,11 +318,12 @@ class Table:
         for i in range(blind2 + 1):
             self.rotation += [self.Players[i]]
 
-    def getRotation(self, round):
-        """ Uses the round number to determine the betting rotation."""
+    # TODO: Prevent folded players from screwing up how the dealer is chosen
+    def getRotation(self, Round):
+        """ Uses the Round number to determine the betting rotation."""
         # Set indices in player list for the dealer
         playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
-        dealer = round % playerCount - 1
+        dealer = Round % playerCount - 1
 
         # Create a list of player indices in their regular rotation order
         for i in range(dealer + 1, playerCount):
@@ -369,6 +373,9 @@ class Table:
 
         self.bettingRotation()
 
+        # Reset rotation
+        self.rotation = []
+
         # Print info
         self.playerInfo(self.Players)
         self.potInfo()
@@ -379,13 +386,16 @@ class Table:
         self.currentBet = 0
         self.bettingRotation()
 
+        # Reset rotation
+        self.rotation = []
+
         # Print info
         self.playerInfo(self.Players)
         self.potInfo()
         print("\n")
 
     def resolvePots(self):
-        """ Resolves all of pots at the end of a round."""
+        """ Resolves all of pots at the end of a Round."""
         for pot in self.pots:
             print(pot)
             while True:
@@ -411,6 +421,16 @@ class Table:
                     print("This player is not in this pot. Please input a valid name.\n")
                     continue
         
+        # Check if players are bankrupt
+        for player in self.Players:
+            # Resolve bets for folded players
+            if player in self.foldedPlayers:
+                player.resolveBet(0)
+
+            if player.chips == 0:
+                self.bankruptPlayers += [player]
+                self.Players.remove(player)
+
         # Reset the pots list
         self.pots = []
 
@@ -422,7 +442,7 @@ class Table:
                 # If the player is not allowed to bet, continue to the next iteration
                 if not player.canBet:
                     continue 
-                
+
                 # Print info
                 self.playerInfo(self.rotation)
                 self.potInfo()
@@ -536,8 +556,11 @@ class Table:
             # Clear allinPlayers
             self.allinPlayers = []
 
-            # If everyone left in the rotation matches the current bet, end the rotation
-            if all(player.bet == self.currentBet for player in self.rotation):
+            # If everyone left in the rotation has met the current bet, end the rotation
+            if all(player.bet >= self.currentBet for player in self.rotation):
+                # Reallow betting for next rotation
+                for player in self.rotation:
+                    player.canBet = True
                 break
 
     def stay(self, stayPlayer):
@@ -701,7 +724,7 @@ class Table:
     
     def addSidePot(self, newAmount, newPlayer):
         """ Creates a new side pot to be the new current pot 
-        for the round"""
+        for the Round"""
         # Set currentPot to false for the old current pot
         self.pots[-1].currentPot = False
 
@@ -726,29 +749,32 @@ def main():
     table.getBlinds()
 
     # Begin looping through rounds until only one player remains with chips
-    round = 0
+    Round = 0
     while True:
-        round += 1
-        print("\nRound", round)
+        Round += 1
+        print("\nRound", Round)
 
         # Pre-flop
-        table.getPreFlopRotation(round)
+        input("Pre-flop: Press any key \n")
+        table.getPreFlopRotation(Round)
         table.preflop()
 
         # Flop
+        input("Flop: Deal the flop and press any key \n")
         if (not table.allPlayersAllin()):
-            print("Yep")
-            table.getRotation(round)
+            table.getRotation(Round)
             table.postflop()
 
         # Turn
+        input("Turn: Deal the turn and press any key \n")
         if (not table.allPlayersAllin()):
-            table.getRotation(round)
+            table.getRotation(Round)
             table.postflop()
 
         # River
+        input("River: Deal the river and press any key \n")
         if (not table.allPlayersAllin()):
-            table.getRotation(round)
+            table.getRotation(Round)
             table.postflop()
 
         # Resolve bets
@@ -814,10 +840,10 @@ def preflopTest1():
     table = Table(players, smallBlind = 1, bigBlind = 2)
 
     # Do a preflop runthrough
-    round = 1
-    print("\nRound", round)
+    Round = 1
+    print("\nRound", Round)
 
-    table.getPreFlopRotation(round)
+    table.getPreFlopRotation(Round)
     table.preflop()
 
     del table
@@ -835,11 +861,13 @@ def preflopTest2():
     table = Table(players, smallBlind = 100, bigBlind = 200)
 
     # Do a preflop runthrough
-    round = 1
-    print("\nRound", round)
+    Round = 1
+    print("\nRound", Round)
 
-    table.getPreFlopRotation(round)
+    table.getPreFlopRotation(Round)
     table.preflop()
+
+    del table
 
 def preflopTest3():
     # Initialize 5 example players and place them in a list
@@ -854,11 +882,65 @@ def preflopTest3():
     table = Table(players, smallBlind = 100, bigBlind = 200)
 
     # Do a preflop runthrough
-    round = 1
-    print("\nRound", round)
+    Round = 1
+    print("\nRound", Round)
 
-    table.getPreFlopRotation(round)
+    table.getPreFlopRotation(Round)
     table.preflop()
+
+    del table
+
+def gameTest1():
+    # Initialize 5 example players and place them in a list
+    p1 = Player("Andrew", 100)
+    p2 = Player("Brett", 100)
+    p3 = Player("Cindy", 100)
+    p4 = Player("Deandra", 100)
+    p5 = Player("Egbert", 100)
+    players = [p1, p2, p3, p4, p5]
+
+    # Initialize a table with these players, a small blind of 1 and a big blind of 2
+    table = Table(players, smallBlind = 1, bigBlind = 2)
+
+    # Begin looping through rounds until only one player remains with chips
+    Round = 0
+    while True:
+        Round += 1
+        print("\nRound", Round)
+
+        # Pre-flop
+        input("Pre-flop: Press enter \n")
+        table.getPreFlopRotation(Round)
+        table.preflop()
+
+        # Flop
+        input("Flop: Deal the flop and press enter \n")
+        if (not table.allPlayersAllin()):
+            table.getRotation(Round)
+            table.postflop()
+
+        # Turn
+        input("Turn: Deal the turn and press enter \n")
+        if (not table.allPlayersAllin()):
+            table.getRotation(Round)
+            table.postflop()
+
+        # River
+        input("River: Deal the river and press enter \n")
+        if (not table.allPlayersAllin()):
+            table.getRotation(Round)
+            table.postflop()
+
+        # Resolve bets
+        table.resolvePots()
+
+        # If there is one Player left with chips, end the game
+        winner = table.lastPlayer()
+        if not winner == None:
+            print("Player", winner.name, "has won!")
+            break
+
+    del table
 
 def sortTest():
     # Initialize 5 example players and place them in a list
