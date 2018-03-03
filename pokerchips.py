@@ -216,6 +216,10 @@ class Table:
         return all(player.allin for player in self.Players)
 
     def lastPlayer(self):
+        """ Returns True if there is one player left in the pots"""
+        return len(self.resolvedAllinPlayers) == 0 and len(self.rotation) == 1
+
+    def winningPlayer(self):
         """ Returns the last Player with chips. If more than one Player
         still have chips, return None."""
         numPlayers = 0
@@ -312,26 +316,26 @@ class Table:
         
         print("Player", self.Players[dealer].name, "is the dealer.\n")
 
-        # Create a list of player indices in their pre-flop rotation order
+        # Update self.rotations with the Players in their preflop rotation order
         for i in range(blind2 + 1, playerCount):
             self.rotation += [self.Players[i]]
         for i in range(blind2 + 1):
             self.rotation += [self.Players[i]]
 
-    # TODO: Prevent folded players from screwing up how the dealer is chosen
     def getRotation(self, Round):
         """ Uses the Round number to determine the betting rotation."""
         # Set indices in player list for the dealer
         playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
         dealer = Round % playerCount - 1
 
-        # Create a list of player indices in their regular rotation order
+        # Create a temporary filtered list of players who are still in the game
+        filtPlayers = [player for player in self.Players if player not in self.foldedPlayers and player not in self.resolvedAllinPlayers]
+
+        # Update self.rotations with the Players in their regular rotation order
         for i in range(dealer + 1, playerCount):
-            if not self.Players[i] in self.foldedPlayers and not self.Players[i] in self.resolvedAllinPlayers:
-                self.rotation += [self.Players[i]]
+            self.rotation += [filtPlayers[i]]
         for i in range(dealer + 1):
-            if not self.Players[i] in self.foldedPlayers and not self.Players[i] in self.resolvedAllinPlayers:
-                self.rotation += [self.Players[i]]
+            self.rotation += [filtPlayers[i]]
 
     def preflop(self):
         """ Handles the pre-flop betting rotation"""
@@ -383,7 +387,11 @@ class Table:
 
     def postflop(self):
         """ Handles betting rotations past the pre-flop rotation"""
+        # Reset currentBet and player bets
         self.currentBet = 0
+        for player in self.Players:
+            player.bet = 0
+
         self.bettingRotation()
 
         # Reset rotation
@@ -435,10 +443,17 @@ class Table:
         self.pots = []
 
     def bettingRotation(self):
-        """ Handles a single betting rotation"""
+        """ Handles a single betting rotation. Returns True if more than 1 player
+        is still in the pot, False otherwise"""
         # Continue until all bets are settled
         while True:
             for player in self.rotation:
+                """
+                # If there is only one player left return False
+                if lastPlayer:
+                    return False
+                """
+
                 # If the player is not allowed to bet, continue to the next iteration
                 if not player.canBet:
                     continue 
@@ -494,10 +509,9 @@ class Table:
                     # Prevent the player from betting again until someone else raises
                     player.canBet = False
 
-                    if self.currentBet == 0:
+                    if self.currentBet == player.bet:
                         print("Player", player.name, "has checked. \n")
                     elif self.currentBet - player.bet >= player.chips:
-                        print("Dongasaurus")
                         self.allIn(player)
                         print(player, "\n")
                     else:
@@ -561,7 +575,7 @@ class Table:
                 # Reallow betting for next rotation
                 for player in self.rotation:
                     player.canBet = True
-                break
+                return True
 
     def stay(self, stayPlayer):
         """ Makes a player call/raise and changes the pots accordingly"""
@@ -740,6 +754,8 @@ class Table:
         i = self.pots.index(nextPot)
         self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
 
+#TODO: Create function for checking if there is only one player not folded
+
 def main():
     # Initialize the poker table
     table = Table()
@@ -781,14 +797,12 @@ def main():
         table.resolvePots()
 
         # If there is one Player left with chips, end the game
-        winner = table.lastPlayer()
+        winner = table.winningPlayer()
         if not winner == None:
             print("Player", winner.name, "has won!")
             break
 
     del table
-
-
 
 def get_int(s):
     """ Returns an integer casting of user input (displays the string s 
