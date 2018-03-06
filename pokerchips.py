@@ -165,6 +165,14 @@ class Pot:
             del self.contributions[remPlayer]
             self.Players.remove(remPlayer)
 
+    def lastPlayer(self):
+        """ Returns the last Player in the Pot, if there is one. Otherwise
+        returns None"""
+        if len(self.Players) == 1:
+            return self.Players[0]
+        else:
+            return None
+
     def resolve(self, winPlayer):
         """ Resolves the pot in favor of the winPlayer"""
         winPlayer.won = True
@@ -217,7 +225,7 @@ class Table:
 
     def lastPlayer(self):
         """ Returns True if there is one player left in the pots"""
-        return len(self.resolvedAllinPlayers) == 0 and len(self.rotation) == 1
+        return len(self.Players) - len(self.foldedPlayers) == 1
 
     def winningPlayer(self):
         """ Returns the last Player with chips. If more than one Player
@@ -242,7 +250,6 @@ class Table:
         else:
             return None
 
-    
     def playerInfo(self, players):
         """ Prints out important player info"""    
         for player in players:
@@ -375,7 +382,8 @@ class Table:
             
         self.createPots()
 
-        self.bettingRotation()
+        if self.bettingRotation():
+            return True
 
         # Reset rotation
         self.rotation = []
@@ -384,6 +392,8 @@ class Table:
         self.playerInfo(self.Players)
         self.potInfo()
         print("\n")
+
+        return False
 
     def postflop(self):
         """ Handles betting rotations past the pre-flop rotation"""
@@ -392,7 +402,8 @@ class Table:
         for player in self.Players:
             player.bet = 0
 
-        self.bettingRotation()
+        if self.bettingRotation():
+            return True
 
         # Reset rotation
         self.rotation = []
@@ -402,32 +413,44 @@ class Table:
         self.potInfo()
         print("\n")
 
+        return False
+
     def resolvePots(self):
         """ Resolves all of pots at the end of a Round."""
         for pot in self.pots:
             print(pot)
-            while True:
-                p = str(input("Which player won this pot? "))
-                player = self.getPlayerByString(p)
 
-                # Print an error message if the given Player does not exist
-                if player == None:
-                    print("This player does not exist. Please input a valid name.\n")
-                    continue
+            # Check to see if there is only one player in the pot and store them in a variable
+            lastPlayer = pot.lastPlayer()
 
-                # If the given Player is in the Pot, resolve it in their favor
-                elif player.inPot(pot):
-                    print("Player", p, "has won the pot.\n")
-                    pot.resolve(player)
-                    
-                    # Delete the pot object
-                    del pot
-                    break
+            # If there is only one player in the pot, automatically resolve it in their favor
+            if lastPlayer != None:
+                print("Player", lastPlayer.name, "has won the pot.\n")
+                pot.resolve(lastPlayer)
 
-                # Print an error message if the given Player is not in the Pot
-                else:
-                    print("This player is not in this pot. Please input a valid name.\n")
-                    continue
+            else: 
+                while True:
+                    p = str(input("Which player won this pot? "))
+                    player = self.getPlayerByString(p)
+
+                    # Print an error message if the given Player does not exist
+                    if player == None:
+                        print("This player does not exist. Please input a valid name.\n")
+                        continue
+
+                    # If the given Player is in the Pot, resolve it in their favor
+                    elif player.inPot(pot):
+                        print("Player", p, "has won the pot.\n")
+                        pot.resolve(player)
+                        
+                        # Delete the pot object
+                        del pot
+                        break
+
+                    # Print an error message if the given Player is not in the Pot
+                    else:
+                        print("This player is not in this pot. Please input a valid name.\n")
+                        continue
         
         # Check if players are bankrupt
         for player in self.Players:
@@ -443,16 +466,14 @@ class Table:
         self.pots = []
 
     def bettingRotation(self):
-        """ Handles a single betting rotation. Returns True if more than 1 player
+        """ Handles a single betting rotation. Returns True if only 1 player
         is still in the pot, False otherwise"""
         # Continue until all bets are settled
         while True:
             for player in self.rotation:
-                """
-                # If there is only one player left return False
-                if lastPlayer:
-                    return False
-                """
+                # If there is only one player left return True
+                if self.lastPlayer():
+                    return True
 
                 # If the player is not allowed to bet, continue to the next iteration
                 if not player.canBet:
@@ -575,7 +596,7 @@ class Table:
                 # Reallow betting for next rotation
                 for player in self.rotation:
                     player.canBet = True
-                return True
+                return False
 
     def stay(self, stayPlayer):
         """ Makes a player call/raise and changes the pots accordingly"""
@@ -754,8 +775,6 @@ class Table:
         i = self.pots.index(nextPot)
         self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
 
-#TODO: Create function for checking if there is only one player not folded
-
 def main():
     # Initialize the poker table
     table = Table()
@@ -770,26 +789,29 @@ def main():
         Round += 1
         print("\nRound", Round)
 
+        # Create a flag indicating wheter we should stop the betting and skip to the end
+        stopBetting = False
+
         # Pre-flop
         input("Pre-flop: Press any key \n")
         table.getPreFlopRotation(Round)
-        table.preflop()
+        stopBetting = table.preflop() and table.allPlayersAllin()
 
         # Flop
-        input("Flop: Deal the flop and press any key \n")
-        if (not table.allPlayersAllin()):
+        if (stopBetting):
+            input("Flop: Deal the flop and press any key \n")
             table.getRotation(Round)
-            table.postflop()
+            stopBetting = table.postflop() and table.allPlayersAllin()
 
         # Turn
-        input("Turn: Deal the turn and press any key \n")
-        if (not table.allPlayersAllin()):
+        if (stopBetting):
+            input("Turn: Deal the turn and press any key \n")
             table.getRotation(Round)
-            table.postflop()
+            stopBetting = table.postflop() and table.allPlayersAllin()
 
         # River
-        input("River: Deal the river and press any key \n")
-        if (not table.allPlayersAllin()):
+        if (stopBetting):
+            input("River: Deal the river and press any key \n")
             table.getRotation(Round)
             table.postflop()
 
@@ -922,26 +944,29 @@ def gameTest1():
         Round += 1
         print("\nRound", Round)
 
+        # Create a flag indicating wheter we should stop the betting and skip to the end
+        stopBetting = False
+
         # Pre-flop
-        input("Pre-flop: Press enter \n")
+        input("Pre-flop: Press any key \n")
         table.getPreFlopRotation(Round)
-        table.preflop()
+        stopBetting = table.preflop() and table.allPlayersAllin()
 
         # Flop
-        input("Flop: Deal the flop and press enter \n")
-        if (not table.allPlayersAllin()):
+        if (stopBetting):
+            input("Flop: Deal the flop and press any key \n")
             table.getRotation(Round)
-            table.postflop()
+            stopBetting = table.postflop() and table.allPlayersAllin()
 
         # Turn
-        input("Turn: Deal the turn and press enter \n")
-        if (not table.allPlayersAllin()):
+        if (stopBetting):
+            input("Turn: Deal the turn and press any key \n")
             table.getRotation(Round)
-            table.postflop()
+            stopBetting = table.postflop() and table.allPlayersAllin()
 
         # River
-        input("River: Deal the river and press enter \n")
-        if (not table.allPlayersAllin()):
+        if (stopBetting):
+            input("River: Deal the river and press any key \n")
             table.getRotation(Round)
             table.postflop()
 
@@ -949,7 +974,7 @@ def gameTest1():
         table.resolvePots()
 
         # If there is one Player left with chips, end the game
-        winner = table.lastPlayer()
+        winner = table.winningPlayer()
         if not winner == None:
             print("Player", winner.name, "has won!")
             break
