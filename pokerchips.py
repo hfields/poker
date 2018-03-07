@@ -35,6 +35,8 @@ class Player:
             self.chips += pot
         else:
             self.bet = 0
+        self.folded = False
+        self.allin = False
 
     def Call(self, currentBet):
         """ Increases a player's bet to call"""
@@ -219,9 +221,9 @@ class Table:
         return None
 
     def allPlayersAllin(self):
-        """ Returns True if all Players in the table are all-in.
+        """ Returns True if all Players left unfolded are all-in.
         False otherwise"""
-        return all(player.allin for player in self.Players)
+        return all(player.allin or player.folded for player in self.Players)
 
     def lastPlayer(self):
         """ Returns True if there is one player left in the pots"""
@@ -382,7 +384,10 @@ class Table:
             
         self.createPots()
 
+        # If bettingRotation exited with a True, return True (to end betting)
         if self.bettingRotation():
+            # Reset rotation
+            self.rotation = []
             return True
 
         # Reset rotation
@@ -402,7 +407,10 @@ class Table:
         for player in self.Players:
             player.bet = 0
 
+        # If bettingRotation exited with a True, return True (to end betting)
         if self.bettingRotation():
+            # Reset rotation
+            self.rotation = []
             return True
 
         # Reset rotation
@@ -455,15 +463,26 @@ class Table:
         # Check if players are bankrupt
         for player in self.Players:
             # Resolve bets for folded players
-            if player in self.foldedPlayers:
+            if player.folded:
+                player.resolveBet(0)
+
+            elif player.allIn:
                 player.resolveBet(0)
 
             if player.chips == 0:
                 self.bankruptPlayers += [player]
-                self.Players.remove(player)
+                print("Player", player.name, "has been eliminated from play")
 
-        # Reset the pots list
+        # Remove bankrupt players from players list
+        for player in self.bankruptPlayers:
+            self.Players.remove(player)
+
+        # Reset folded players and the pots list
+        self.foldedPlayers = []
         self.pots = []
+
+        # Print the players
+        self.playerInfo(self.Players)
 
     def bettingRotation(self):
         """ Handles a single betting rotation. Returns True if only 1 player
@@ -771,7 +790,7 @@ class Table:
         # Reduce the bet of nextPot to adjust for the addition of the new Pot  
         nextPot.reduceBet(nextPot.amountPerPlayer - newAmount)
 
-        # Add a new Pot to add to self.pots
+        # Add a new Pot to self.pots
         i = self.pots.index(nextPot)
         self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
 
@@ -788,30 +807,32 @@ def main():
     while True:
         Round += 1
         print("\nRound", Round)
-
-        # Create a flag indicating wheter we should stop the betting and skip to the end
+        # Create a flag indicating whether we should stop the betting and skip to the end
         stopBetting = False
 
         # Pre-flop
-        input("Pre-flop: Press any key \n")
+        input("Pre-flop: Press enter \n")
         table.getPreFlopRotation(Round)
-        stopBetting = table.preflop() and table.allPlayersAllin()
+        stopBetting = table.preflop() 
+        stopBetting = stopBetting or table.allPlayersAllin()
 
         # Flop
-        if (stopBetting):
-            input("Flop: Deal the flop and press any key \n")
+        if (not stopBetting):
+            input("Flop: Deal the flop and press enter \n")
             table.getRotation(Round)
-            stopBetting = table.postflop() and table.allPlayersAllin()
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
 
         # Turn
-        if (stopBetting):
-            input("Turn: Deal the turn and press any key \n")
+        if (not stopBetting):
+            input("Turn: Deal the turn and press enter \n")
             table.getRotation(Round)
-            stopBetting = table.postflop() and table.allPlayersAllin()
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
 
         # River
-        if (stopBetting):
-            input("River: Deal the river and press any key \n")
+        if (not stopBetting):
+            input("River: Deal the river and press enter \n")
             table.getRotation(Round)
             table.postflop()
 
@@ -943,30 +964,32 @@ def gameTest1():
     while True:
         Round += 1
         print("\nRound", Round)
-
-        # Create a flag indicating wheter we should stop the betting and skip to the end
+        # Create a flag indicating whether we should stop the betting and skip to the end
         stopBetting = False
 
         # Pre-flop
-        input("Pre-flop: Press any key \n")
+        input("Pre-flop: Press enter \n")
         table.getPreFlopRotation(Round)
-        stopBetting = table.preflop() and table.allPlayersAllin()
+        stopBetting = table.preflop() 
+        stopBetting = stopBetting or table.allPlayersAllin()
 
         # Flop
-        if (stopBetting):
-            input("Flop: Deal the flop and press any key \n")
+        if (not stopBetting):
+            input("Flop: Deal the flop and press enter \n")
             table.getRotation(Round)
-            stopBetting = table.postflop() and table.allPlayersAllin()
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
 
         # Turn
-        if (stopBetting):
-            input("Turn: Deal the turn and press any key \n")
+        if (not stopBetting):
+            input("Turn: Deal the turn and press enter \n")
             table.getRotation(Round)
-            stopBetting = table.postflop() and table.allPlayersAllin()
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
 
         # River
-        if (stopBetting):
-            input("River: Deal the river and press any key \n")
+        if (not stopBetting):
+            input("River: Deal the river and press enter \n")
             table.getRotation(Round)
             table.postflop()
 
