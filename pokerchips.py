@@ -423,67 +423,6 @@ class Table:
 
         return False
 
-    def resolvePots(self):
-        """ Resolves all of pots at the end of a Round."""
-        for pot in self.pots:
-            print(pot)
-
-            # Check to see if there is only one player in the pot and store them in a variable
-            lastPlayer = pot.lastPlayer()
-
-            # If there is only one player in the pot, automatically resolve it in their favor
-            if lastPlayer != None:
-                print("Player", lastPlayer.name, "has won the pot.\n")
-                pot.resolve(lastPlayer)
-
-            else: 
-                while True:
-                    p = str(input("Which player won this pot? "))
-                    player = self.getPlayerByString(p)
-
-                    # Print an error message if the given Player does not exist
-                    if player == None:
-                        print("This player does not exist. Please input a valid name.\n")
-                        continue
-
-                    # If the given Player is in the Pot, resolve it in their favor
-                    elif player.inPot(pot):
-                        print("Player", p, "has won the pot.\n")
-                        pot.resolve(player)
-                        
-                        # Delete the pot object
-                        del pot
-                        break
-
-                    # Print an error message if the given Player is not in the Pot
-                    else:
-                        print("This player is not in this pot. Please input a valid name.\n")
-                        continue
-        
-        # Check if players are bankrupt
-        for player in self.Players:
-            # Resolve bets for folded players
-            if player.folded:
-                player.resolveBet(0)
-
-            elif player.allIn:
-                player.resolveBet(0)
-
-            if player.chips == 0:
-                self.bankruptPlayers += [player]
-                print("Player", player.name, "has been eliminated from play")
-
-        # Remove bankrupt players from players list
-        for player in self.bankruptPlayers:
-            self.Players.remove(player)
-
-        # Reset folded players and the pots list
-        self.foldedPlayers = []
-        self.pots = []
-
-        # Print the players
-        self.playerInfo(self.Players)
-
     def bettingRotation(self):
         """ Handles a single betting rotation. Returns True if only 1 player
         is still in the pot, False otherwise"""
@@ -617,6 +556,67 @@ class Table:
                     player.canBet = True
                 return False
 
+    def resolvePots(self):
+        """ Resolves all of pots at the end of a Round."""
+        for pot in self.pots:
+            print(pot)
+
+            # Check to see if there is only one player in the pot and store them in a variable
+            lastPlayer = pot.lastPlayer()
+
+            # If there is only one player in the pot, automatically resolve it in their favor
+            if lastPlayer != None:
+                print("Player", lastPlayer.name, "has won the pot.\n")
+                pot.resolve(lastPlayer)
+
+            else: 
+                while True:
+                    p = str(input("Which player won this pot? "))
+                    player = self.getPlayerByString(p)
+
+                    # Print an error message if the given Player does not exist
+                    if player == None:
+                        print("This player does not exist. Please input a valid name.\n")
+                        continue
+
+                    # If the given Player is in the Pot, resolve it in their favor
+                    elif player.inPot(pot):
+                        print("Player", p, "has won the pot.\n")
+                        pot.resolve(player)
+                        
+                        # Delete the pot object
+                        del pot
+                        break
+
+                    # Print an error message if the given Player is not in the Pot
+                    else:
+                        print("This player is not in this pot. Please input a valid name.\n")
+                        continue
+        
+        # Check if players are bankrupt
+        for player in self.Players:
+            # Resolve bets for folded players
+            if player.folded:
+                player.resolveBet(0)
+
+            elif player.allIn:
+                player.resolveBet(0)
+
+            if player.chips == 0:
+                self.bankruptPlayers += [player]
+                print("Player", player.name, "has been eliminated from play")
+
+        # Remove bankrupt players from players list
+        for player in self.bankruptPlayers:
+            self.Players.remove(player)
+
+        # Reset folded players and the pots list
+        self.foldedPlayers = []
+        self.pots = []
+
+        # Print the players
+        self.playerInfo(self.Players)
+    
     def stay(self, stayPlayer):
         """ Makes a player call/raise and changes the pots accordingly"""
         # Add the player to any pots below the current pot that the player is not already in
@@ -647,6 +647,7 @@ class Table:
     
     def allIn(self, allinPlayer):
         """ Puts a player all-in and changes the pots accordingly"""
+        
         allinPlayer.allIn()
 
         # Initialize a sum to keep track of how many chips are needed to get into each successive pot
@@ -670,8 +671,8 @@ class Table:
 
                     # If the player has more chips than the current bet, act as if the player has raised.
                     else:
-                        # If there are any all-in players in the current pot and allinPlayer has raised, create a new side pot
-                        if not all(not player.allin for player in pot.Players):
+                        # If there are any all-in players (other than the player that just went all-in) in the current pot and allinPlayer has raised, create a new side pot
+                        if not all(not player.allin for player in list(filter(lambda x: x.name != allinPlayer.name, pot.Players))):
                             self.addSidePot(allinPlayer.bet - self.currentBet, allinPlayer)
                             self.pots[-2].addPlayer(allinPlayer, self.currentBet)
                         else:
