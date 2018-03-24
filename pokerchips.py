@@ -579,6 +579,10 @@ class Table:
 
     def resolvePots(self):
         """ Resolves all of pots at the end of a Round."""
+
+        # Create a variable for keeping track of the last Player to win one of the pots
+        lastWinner = None
+
         for pot in self.pots:
             print(pot)
 
@@ -592,27 +596,39 @@ class Table:
 
             else: 
                 while True:
-                    p = str(input("Which player won this pot? "))
-                    player = self.getPlayerByString(p)
-
-                    # Print an error message if the given Player does not exist
-                    if player == None:
-                        print("This player does not exist. Please input a valid name.\n")
-                        continue
-
-                    # If the given Player is in the Pot, resolve it in their favor
-                    elif player.inPot(pot):
-                        print("Player", p, "has won the pot.\n")
-                        pot.resolve(player)
-                        
-                        # Delete the pot object
-                        del pot
-                        break
-
-                    # Print an error message if the given Player is not in the Pot
+                    # If the lastWinner is in this pot too, automatically resolve it in their favor
+                    if lastWinner != None:
+                        if lastWinner.inPot(pot):
+                            print("Player", lastWinner.name, "has won the pot.\n")
+                            pot.resolve(lastWinner)
+                            
+                            # Delete the pot object
+                            del pot
+                            break
+                    
                     else:
-                        print("This player is not in this pot. Please input a valid name.\n")
-                        continue
+                        p = str(input("Which player won this pot? "))
+                        player = self.getPlayerByString(p)
+
+                        # Print an error message if the given Player does not exist
+                        if player == None:
+                            print("This player does not exist. Please input a valid name.\n")
+                            continue
+
+                        # If the given Player is in the Pot, resolve it in their favor and save them as the lastWinner
+                        elif player.inPot(pot):
+                            print("Player", p, "has won the pot.\n")
+                            pot.resolve(player)
+                            lastWinner = player
+                            
+                            # Delete the pot object
+                            del pot
+                            break
+
+                        # Print an error message if the given Player is not in the Pot
+                        else:
+                            print("This player is not in this pot. Please input a valid name.\n")
+                            continue
         
         # Check if players are bankrupt
         for player in self.Players:
