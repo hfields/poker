@@ -70,23 +70,33 @@ class Pot:
     is the main pot or a side pot, and whether or not the pot is the current 
     pot
     """
-    def __init__(self, amount = 0, Players = [], mainPot = True, currentPot = False):
+    def __init__(self, amount = 0, amountPerPlayer = 0, Players = [], mainPot = True, currentPot = False):
         self.amount = amount
         self.Players = Players
         self.contributions = {}
         for player in Players:
             self.contributions[player] = player.bet
-        self.amountPerPlayer = amount // len(Players)
         self.mainPot = mainPot
         self.currentPot = currentPot
+
+        # By default, make amountPerPlayer the amount divided by the number of Players
+        if amountPerPlayer == 0:
+            self.amountPerPlayer = amount // len(Players)
+        else:
+            self.amountPerPlayer = amountPerPlayer
+        
 
     def __repr__(self):
         """ Returns a string describing the given pot"""
         # Create a string to be filled up and returned
         s = str(self.amount) + " chips "
         
-        if len(self.Players) == 1:
+        if len(self.Players) == 0:
+            s += "floating in the ether"
+
+        elif len(self.Players) == 1:
             s += "with " + self.Players[0].name
+
         else:
             s += "between "
             # Add the names of the players in the pot
@@ -185,16 +195,18 @@ class Pot:
         winPlayer.won = False
 
 class Table:
-    """ Creates a representation of a poker table. This includes 5 lists of 
-    Player objects: a full list of players, a list of players that have gone
-    bankrupt, a list of players that have folded, a list of players who are
-    currently all-in, a list of players who are all-in whose bets have been
-    resolved to pots, and a list of players in the current betting rotation.
-    The table also keeps track of the small blind, big blind, and current bet 
-    as integers, and keeps a list of all pots on the table (main pot and side pots)
+    """ Creates a representation of a poker table. This includes 7 lists of 
+    Player objects: a list of players still in the game, a list of all players,
+    a list of players that have gone bankrupt, a list of players that have folded, 
+    a list of players who are currently all-in, a list of players who are all-in 
+    whose bets have been resolved to pots, and a list of players in the current 
+    betting rotation. The table also keeps track of the small blind, big blind, 
+    and current bet as integers, and keeps a list of all pots on the table (main 
+    pot and side pots)
     """
-    def __init__(self, Players = [], bankruptPlayers = [], foldedPlayers = [], allinPlayers = [], resolvedAllinPlayers = [], rotation = [], smallBlind = 0, bigBlind = 0, currentBet = 0, pots = []):
+    def __init__(self, Players = [], allPlayers = [], bankruptPlayers = [], foldedPlayers = [], allinPlayers = [], resolvedAllinPlayers = [], rotation = [], smallBlind = 0, bigBlind = 0, currentBet = 0, pots = []):
         self.Players = Players
+        self.allPlayers = allPlayers
         self.bankruptPlayers = bankruptPlayers
         self.foldedPlayers = foldedPlayers
         self.allinPlayers = allinPlayers
@@ -293,9 +305,10 @@ class Table:
         
         startChips = get_int("How many chips should each player start with? ")
         
-        # Fill up Players
+        # Fill up Players and allPlayers
         for player in playernames:
             self.Players += [Player(player, startChips)]
+            self.allPlayers += [Player(player, startChips)]
     
     def getBlinds(self):
         """ Uses user input to set the small and big blind. Big blind will always be
@@ -313,37 +326,45 @@ class Table:
     def getPreFlopRotation(self, Round):
         """ Uses the Round number to determine the (pre-flop) betting rotation."""
         # Set indices in player list for dealer and blinds
+        playerCount = len(self.allPlayers)
+        dealer = (Round - 1) % playerCount
+
+        # If the Player who should be the dealer is out, cycle to the next Player
+        while(self.allPlayers[dealer] in self.bankruptPlayers):
+            dealer = (dealer + 1) % playerCount
+
+        dealer = self.Players.index(self.allPlayers[dealer])
+
         playerCount = len(self.Players)
-        dealer = Round % playerCount - 1
 
         if (playerCount > 2):
-            blind1 = dealer + 1
-            blind2 = dealer + 2
+            blind1 = (dealer + 1) % playerCount
+            blind2 = (dealer + 2) % playerCount
         else:
-            blind1 = dealer + 1
+            blind1 = (dealer + 1) % playerCount
             blind2 = dealer
         
         print("Player", self.Players[dealer].name, "is the dealer.\n")
 
-        # Update self.rotations with the Players in their preflop rotation order
-        for i in range(blind2 + 1, playerCount):
+        # Update self.rotation with the Players in their preflop rotation order
+        for i in range((blind2 + 1) % playerCount, playerCount):
             self.rotation += [self.Players[i]]
-        for i in range(blind2 + 1):
+        for i in range((blind2 + 1) % playerCount):
             self.rotation += [self.Players[i]]
 
     def getRotation(self, Round):
         """ Uses the Round number to determine the betting rotation."""
         # Set indices in player list for the dealer
         playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
-        dealer = Round % playerCount - 1
+        dealer = Round % (playerCount - 1)
 
         # Create a temporary filtered list of players who are still in the game
         filtPlayers = [player for player in self.Players if player not in self.foldedPlayers and player not in self.resolvedAllinPlayers]
 
         # Update self.rotations with the Players in their regular rotation order
-        for i in range(dealer + 1, playerCount):
+        for i in range((dealer + 1) % playerCount, playerCount):
             self.rotation += [filtPlayers[i]]
-        for i in range(dealer + 1):
+        for i in range((dealer + 1) % playerCount):
             self.rotation += [filtPlayers[i]]
 
     def preflop(self):
@@ -610,8 +631,9 @@ class Table:
         for player in self.bankruptPlayers:
             self.Players.remove(player)
 
-        # Reset folded players and the pots list
+        # Reset folded players, resolvedAllInPlayers, and the pots list
         self.foldedPlayers = []
+        self.resolvedAllinPlayers = []
         self.pots = []
 
         # Print the players
@@ -623,6 +645,9 @@ class Table:
         for pot in self.pots[:-1]:
             if not stayPlayer.inPot(pot):
                 pot.addPlayer(stayPlayer, self.currentBet)
+            elif pot.contributions[stayPlayer] != pot.amountPerPlayer:
+                pot.stayIn(stayPlayer)
+
 
         # Add the player to the current pot if they aren't in it        
         if not stayPlayer.inPot(self.pots[-1]):
@@ -647,13 +672,11 @@ class Table:
     
     def allIn(self, allinPlayer):
         """ Puts a player all-in and changes the pots accordingly"""
-        
         allinPlayer.allIn()
-
         # Initialize a sum to keep track of how many chips are needed to get into each successive pot
         betSum = 0
 
-        # Iterate through all pots but the last
+        # Iterate through all pots
         for pot in self.pots:
             # Run a special case for the current Pot
             if pot.currentPot:
@@ -662,12 +685,14 @@ class Table:
                     # If the player has exactly the amount of chips to stay in the pot, keep them in
                     if allinPlayer.bet == self.currentBet:
                         pot.stayIn(allinPlayer)
+                        break
 
                     # If the player has less than the amount of chips needed to stay in the pot, remove them and
                     # create a new pot
                     elif allinPlayer.bet < self.currentBet:
                         pot.removePlayer(allinPlayer)
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
+                        break
 
                     # If the player has more chips than the current bet, act as if the player has raised.
                     else:
@@ -677,15 +702,18 @@ class Table:
                             self.pots[-2].addPlayer(allinPlayer, self.currentBet)
                         else:
                             pot.increaseBet(allinPlayer, allinPlayer.bet - self.currentBet)
+                        break
 
                 else:
-                    # If the player has the exact amount of chips needed to get into the pot, add them
+                    # If the player has the exact amount of chips needed to get into the pot, add them and break
                     if allinPlayer.bet == self.currentBet:
                         pot.addPlayer(allinPlayer, self.currentBet)
+                        break
 
-                    # If the player has less than the amount of chips needed to get into the pot, create a new pot
+                    # If the player has less than the amount of chips needed to get into the pot, insert a new pot and break
                     elif allinPlayer.bet < self.currentBet:
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
+                        break
 
                     # If the player has more chips than the current bet, act as if the player has raised.
                     else:
@@ -695,21 +723,26 @@ class Table:
                             self.pots[-2].addPlayer(allinPlayer, self.currentBet)
                         else:
                             pot.addPlayer(allinPlayer, self.currentBet)
+                        break
 
             else:
                 # Actions will change based on whether or not the allinPlayer is in the pot
                 if allinPlayer.inPot(pot):
-                    # If the player is already fully in the pot, skip it
+                    # If the player is already fully in the pot, skip it and increment betsum
                     if pot.contributions[allinPlayer] == pot.amountPerPlayer:
                         betSum += pot.amountPerPlayer
-                    # If the player has the exact amount of chips needed to stay in the pot, add them and break 
+                    # If the player has the exact amount of chips needed to stay in the pot, keep them in and break 
                     elif allinPlayer.bet == betSum + (pot.amountPerPlayer - pot.contributions[allinPlayer]):
                         pot.stayIn(allinPlayer)
-                        betSum += pot.amountPerPlayer
                         break
 
-                    # If the player has less than the amount of chips needed to stay in the pot, remove them and
-                    # create a new pot
+                    # If the player has more than the amount of chips needed to get into the pot, keep them in and increment betsum
+                    elif allinPlayer.bet > betSum + pot.amountPerPlayer:
+                        pot.stayIn(allinPlayer)
+                        betSum += pot.amountPerPlayer
+
+                    # If the player has less than the amount of chips needed to stay in the pot, remove them,
+                    # insert a new pot, and break
                     else:
                         pot.removePlayer(allinPlayer)
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
@@ -719,15 +752,14 @@ class Table:
                     # If the player has the exact amount of chips needed to get into the pot, add them and break 
                     if allinPlayer.bet == betSum + pot.amountPerPlayer:
                         pot.addPlayer(allinPlayer, self.currentBet)
-                        betSum += pot.amountPerPlayer
                         break
 
-                    # If the player has more than the amount of chips needed to get into the pot, add them
+                    # If the player has more than the amount of chips needed to get into the pot, add them and increment betsum
                     elif allinPlayer.bet > betSum + pot.amountPerPlayer:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         betSum += pot.amountPerPlayer
 
-                    # If the player has less than the amount of chips needed to get into the pot, create a new pot
+                    # If the player has less than the amount of chips needed to get into the pot, insert a new pot and break
                     else:
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
                         break
@@ -786,14 +818,34 @@ class Table:
         # Add a new side pot with just the latest player in it
         self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
 
-    def insertPot(self, newPlayer, newAmount, nextPot):
-        """ Create a new pot right before the nextPot""" 
-        # Reduce the bet of nextPot to adjust for the addition of the new Pot  
-        nextPot.reduceBet(nextPot.amountPerPlayer - newAmount)
+    def insertPot(self, newPlayer, newAmountPerPlayer, nextPot):
+        """ Create a new pot right before the nextPot"""
+        # Keep track of the new number of chips and keep a list of players that can be bumped down to the inserted pot
+        newAmount = newAmountPerPlayer
+        bumpedPlayers = []
+
+        # Add up the contributions of each of the players in the next pot to the new inserted pot
+        for player in nextPot.Players:
+            # If a player hasn't contributed enough to nextPot, bump them from nextPot
+            if nextPot.contributions[player] <= newAmountPerPlayer:
+                newAmount += nextPot.contributions[player]
+                bumpedPlayers += [player]
+                
+            else:
+                newAmount += newAmountPerPlayer
+
+        # Remove bumped players from nextPot
+        for player in bumpedPlayers:
+            nextPot.removePlayer(player)
+
+        # Reduce the bet of nextPot to adjust for the addition of the new Pot and make it a sidePot
+        nextPot.reduceBet(newAmountPerPlayer)
+        nextPot.mainPot = False
 
         # Add a new Pot to self.pots
         i = self.pots.index(nextPot)
-        self.pots.insert(i, Pot(amount = newAmount * (len(nextPot.Players) + 1), Players = nextPot.Players + [newPlayer], mainPot = i == 0, currentPot = False))
+
+        self.pots.insert(i, Pot(amount = newAmount, amountPerPlayer = newAmountPerPlayer, Players = nextPot.Players + bumpedPlayers + [newPlayer], mainPot = i == 0, currentPot = False))
 
 def main():
     # Initialize the poker table
@@ -885,6 +937,15 @@ def chipMerge(L1, L2):
     else:
         return [L1[0]] + [L2[0]]
 
+def listCopy(L1):
+    """ Creates and returns a deep copy of L1"""
+    L2 = []
+
+    for item in L1:
+        L2 += [item]
+
+    return L2
+
 def preflopTest1():
     # Initialize 5 example players and place them in a list
     p1 = Player("Andrew", 100)
@@ -895,7 +956,7 @@ def preflopTest1():
     players = [p1, p2, p3, p4, p5]
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
-    table = Table(players, smallBlind = 1, bigBlind = 2)
+    table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
 
     # Do a preflop runthrough
     Round = 1
@@ -916,7 +977,7 @@ def preflopTest2():
     players = [p1, p2, p3, p4, p5]
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
-    table = Table(players, smallBlind = 100, bigBlind = 200)
+    table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 100, bigBlind = 200)
 
     # Do a preflop runthrough
     Round = 1
@@ -937,7 +998,7 @@ def preflopTest3():
     players = [p1, p2, p3, p4, p5]
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
-    table = Table(players, smallBlind = 100, bigBlind = 200)
+    table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 100, bigBlind = 200)
 
     # Do a preflop runthrough
     Round = 1
@@ -958,7 +1019,64 @@ def gameTest1():
     players = [p1, p2, p3, p4, p5]
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
-    table = Table(players, smallBlind = 1, bigBlind = 2)
+    table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
+
+    # Begin looping through rounds until only one player remains with chips
+    Round = 0
+    while True:
+        Round += 1
+        print("\nRound", Round)
+        # Create a flag indicating whether we should stop the betting and skip to the end
+        stopBetting = False
+
+        # Pre-flop
+        input("Pre-flop: Press enter \n")
+        table.getPreFlopRotation(Round)
+        stopBetting = table.preflop() 
+        stopBetting = stopBetting or table.allPlayersAllin()
+
+        # Flop
+        if (not stopBetting):
+            input("Flop: Deal the flop and press enter \n")
+            table.getRotation(Round)
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
+
+        # Turn
+        if (not stopBetting):
+            input("Turn: Deal the turn and press enter \n")
+            table.getRotation(Round)
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
+
+        # River
+        if (not stopBetting):
+            input("River: Deal the river and press enter \n")
+            table.getRotation(Round)
+            table.postflop()
+
+        # Resolve bets
+        table.resolvePots()
+
+        # If there is one Player left with chips, end the game
+        winner = table.winningPlayer()
+        if not winner == None:
+            print("Player", winner.name, "has won!")
+            break
+
+    del table
+
+def gameTest2():
+    # Initialize 5 example players and place them in a list
+    p1 = Player("Andrew", 80)
+    p2 = Player("Brett", 600)
+    p3 = Player("Cindy", 1200)
+    p4 = Player("Deandra", 500)
+    p5 = Player("Egbert", 100)
+    players = [p1, p2, p3, p4, p5]
+
+    # Initialize a table with these players, a small blind of 1 and a big blind of 2
+    table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
 
     # Begin looping through rounds until only one player remains with chips
     Round = 0
