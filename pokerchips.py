@@ -123,8 +123,8 @@ class Pot:
         raising accordingly"""
         # Only allow the bet to be raised for the current Pot
         if self.currentPot:
-            self.amount += inc
-            self.contributions[raisePlayer] += inc
+            self.amount += inc + (self.amountPerPlayer - self.contributions[raisePlayer])
+            self.contributions[raisePlayer] += inc + (self.amountPerPlayer - self.contributions[raisePlayer])
             self.amountPerPlayer += inc
 
     def reduceBet(self, dec):
@@ -716,7 +716,7 @@ class Table:
                         # If there are any all-in players (other than the player that just went all-in) in the current pot and allinPlayer has raised, create a new side pot
                         if not all(not player.allin for player in list(filter(lambda x: x.name != allinPlayer.name, pot.Players))):
                             self.addSidePot(allinPlayer.bet - self.currentBet, allinPlayer)
-                            self.pots[-2].addPlayer(allinPlayer, self.currentBet)
+                            self.pots[-2].stayIn(allinPlayer)
                         else:
                             pot.increaseBet(allinPlayer, allinPlayer.bet - self.currentBet)
                         break
