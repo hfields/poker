@@ -307,8 +307,9 @@ class Table:
         
         # Fill up Players and allPlayers
         for player in playernames:
-            self.Players += [Player(player, startChips)]
-            self.allPlayers += [Player(player, startChips)]
+            p = Player(player, startChips)
+            self.Players += [p]
+            self.allPlayers += [p]
     
     def getBlinds(self):
         """ Uses user input to set the small and big blind. Big blind will always be
@@ -1090,6 +1091,61 @@ def gameTest2():
     p4 = Player("Deandra", 500)
     p5 = Player("Egbert", 100)
     players = [p1, p2, p3, p4, p5]
+
+    # Initialize a table with these players, a small blind of 1 and a big blind of 2
+    table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
+
+    # Begin looping through rounds until only one player remains with chips
+    Round = 0
+    while True:
+        Round += 1
+        print("\nRound", Round)
+        # Create a flag indicating whether we should stop the betting and skip to the end
+        stopBetting = False
+
+        # Pre-flop
+        input("Pre-flop: Press enter \n")
+        table.getPreFlopRotation(Round)
+        stopBetting = table.preflop() 
+        stopBetting = stopBetting or table.allPlayersAllin()
+
+        # Flop
+        if (not stopBetting):
+            input("Flop: Deal the flop and press enter \n")
+            table.getRotation(Round)
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
+
+        # Turn
+        if (not stopBetting):
+            input("Turn: Deal the turn and press enter \n")
+            table.getRotation(Round)
+            stopBetting = table.postflop()
+            stopBetting = stopBetting or table.allPlayersAllin()
+
+        # River
+        if (not stopBetting):
+            input("River: Deal the river and press enter \n")
+            table.getRotation(Round)
+            table.postflop()
+
+        # Resolve bets
+        table.resolvePots()
+
+        # If there is one Player left with chips, end the game
+        winner = table.winningPlayer()
+        if not winner == None:
+            print("Player", winner.name, "has won!")
+            break
+
+    del table
+
+def gameTest3():
+    # Initialize 2 example players and place them in a list
+    p1 = Player("Andrew", 100)
+    p2 = Player("Brett", 100)
+
+    players = [p1, p2]
 
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
     table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
