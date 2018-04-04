@@ -134,35 +134,275 @@ class Hand:
         """ Fills a hand with numCards cards from the given Deck"""
         self.cards = deck.deal(self.numCards)
 
-    def findPair(self, board):
-        """ Returns all five card hands that can be made from the 
-        hand and the board containing one pair. Will not run if there
-        are not enough cards in the hand and the board to make 5"""
-        hands = []
-        usedValues = []
-        allCards = self.cards + board
+    def boardCombine(self, deck, boardNum):
+        """ Returns a list of cards from the hand and with boardNum
+        cards from the deck"""
+        return self.cards + deck.deal(boardNum)
+    
+
+class HandHelper:
+    """ HandHelper contains methods for finding the best possible 5-card
+    poker hand that can be made out of an arbitrary number of cards, as 
+    well as for comparing different 5-card hands. """
+
+    suits = ["Club", "Heart", "Diamond", "Spade"]
+    hands = ["Pair", "TwoPair", "ThreeOfAKind", "Straight", "Flush", "FullHouse", "FourOfAKind", "StraightFlush"]    
+
+    @staticmethod
+    def findPair(allCards):
+        """ Returns best five card hand that can be made from the 
+        given cards containing one pair. If there are no such hands, 
+        will return None. Will not run if there are not enough cards 
+        in the hand and the board to make 5"""
 
         # Exit if there are not enough cards
         if len(allCards) < 5:
             print("Not enough cards to make a poker hand.\n")
             return
 
-        # Sort allCards from least to greatest
-        allCards.sort()
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
 
         # For each card in allCards, check if it has a pair
         for card in allCards:
-            if not card.value in usedValues:
-                # If so, add a 5-card hand containing that pair and the highest cards after it to hands
-                if countByValue(allCards, card.value) == 2:
-                    pair = list(filter(lambda x: x.value == card.value, allCards))
-                    filtCards = list(filter(lambda x: x.value != card.value, allCards))
-                    filtCards.reverse()
-                    hands += [pair + filtCards[0:3]]
-                    usedValues += [card.value]
+            # If so, return a 5-card hand containing that pair and the highest cards after it
+            if countByValue(allCards, card.value) == 2:
+                pair = list(filter(lambda x: x.value == card.value, allCards))
+                filtCards = list(filter(lambda x: x.value != card.value, allCards))
+                return pair + filtCards[0:3]
+        return None
 
-        return hands
+    @staticmethod
+    def findTwoPair(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing two pairs. If there are no such
+        hands, will return None. Will not run if there are not enough 
+        cards in the hand and the board to make 5"""
 
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # For each card in allCards, check if it has a pair
+        for card in allCards:
+            if countByValue(allCards, card.value) == 2:
+                pair1 = list(filter(lambda x: x.value == card.value, allCards))
+                filtCards = list(filter(lambda x: x.value != card.value, allCards))
+                # If so, check the rest of the cards to see if there is another pair
+                for filtCard in filtCards:
+                    # Return a 5-card hand containing the pairs and the highest card after it
+                    if countByValue(filtCards, filtCard.value) == 2:
+                        pair2 = list(filter(lambda x: x.value == filtCard.value, filtCards))
+                        filtCards = list(filter(lambda x: x.value != filtCard.value, filtCards))
+                        return pair1 + pair2 + filtCards[0:1]
+        return None
+
+    @staticmethod
+    def findThreeOfAKind(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing a three of a kind. If there are 
+        no such hands, will return None. Will not run if there are 
+        not enough cards in the hand and the board to make 5"""
+
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # For each card in allCards, check if there are three of that card in allCards
+        for card in allCards:
+            # If so, return a 5-card hand containing that three of a kind and the highest cards after it
+            if countByValue(allCards, card.value) == 3:
+                three = list(filter(lambda x: x.value == card.value, allCards))
+                filtCards = list(filter(lambda x: x.value != card.value, allCards))
+                return three + filtCards[0:2]
+        return None
+
+    @staticmethod
+    def findStraight(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing a straight. If there are 
+        no such hands, will return None. Will not run if there are 
+        not enough cards in the hand and the board to make 5"""
+
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # Initialize variables for keeping track of a possible straight
+        lastCard = allCards[0]
+        straight = [lastCard]
+
+        # Iterate through the cards, keeping track of how many cards are in numerical order
+        for card in allCards[1:]:
+            # If the next card is in numerical order, continue building the straight
+            if card.value == lastCard.value - 1:
+                straight += [card]
+                lastCard = card
+
+            # If the next card has the same value, skip it and continue to the next card
+            elif card.value == lastCard.value:
+                continue
+
+            # Otherwise, reset the straight and continue to the next card
+            else:
+                straight = [card]
+                lastCard = card
+                continue
+
+            # As soon as we make a full straight, return it
+            if len(straight) == 5:
+                return straight
+       
+        # If there is an Ace in allCards, check for a "baby straight", where Ace is low
+        if allCards[0].value == 14:
+            # Rearrange allCards so that the first Ace is at the end
+            allCards = allCards[1:] + allCards[:1]
+
+            # Iterate through the cards, keeping track of how many cards are in numerical order
+            for card in allCards[1:]:
+                # If the next card is in numerical order, continue building the straight
+                if card.value == lastCard.value - 1:
+                    straight += [card]
+                    lastCard = card
+
+                # If the next card has the same value, skip it and continue to the next card
+                elif card.value == lastCard.value:
+                    continue
+
+                # Otherwise, reset the straight and continue to the next card
+                else:
+                    straight = [card]
+                    lastCard = card
+                    continue
+
+                # As soon as we make a full straight, return it
+                if len(straight) == 5:
+                    return straight
+
+        return None
+
+    # TODO: Make sure that the flush returned is the highest possible flush
+    @staticmethod
+    def findFlush(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing a flush. If there are 
+        no such hands, will return None. Will not run if there are 
+        not enough cards in the hand and the board to make 5"""
+
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # Filter allCards by suit, and return the first hand we find with 5 of the same suit
+        for suit in HandHelper.suits:
+            filtCards = list(filter(lambda x: x.suit == suit, allCards))
+            if len(filtCards) >= 5:
+                return filtCards[0:5]
+
+        return None
+
+    @staticmethod
+    def findFullHouse(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing a full house. If there are no such
+        hands, will return None. Will not run if there are not enough 
+        cards in the hand and the board to make 5"""
+
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # For each card in allCards, check if it has a three of a kind
+        for card in allCards:
+            if countByValue(allCards, card.value) == 3:
+                three = list(filter(lambda x: x.value == card.value, allCards))
+                filtCards = list(filter(lambda x: x.value != card.value, allCards))
+                # If so, check the rest of the cards to see if there is a pair to complete the full house
+                for filtCard in filtCards:
+                    # Return a 5-card hand containing the pairs and the highest card after it
+                    if countByValue(filtCards, filtCard.value) == 2:
+                        pair = list(filter(lambda x: x.value == filtCard.value, filtCards))
+                        filtCards = list(filter(lambda x: x.value != filtCard.value, filtCards))
+                        return three + pair
+        return None
+
+    @staticmethod
+    def findFourOfAKind(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing a four of a kind. If there are 
+        no such hands, will return None. Will not run if there are 
+        not enough cards in the hand and the board to make 5"""
+
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # For each card in allCards, check if there are four of that card in allCards
+        for card in allCards:
+            # If so, return a 5-card hand containing that four of a kind and the highest card after it
+            if countByValue(allCards, card.value) == 4:
+                four = list(filter(lambda x: x.value == card.value, allCards))
+                filtCards = list(filter(lambda x: x.value != card.value, allCards))
+                return four + filtCards[0:1]
+        return None
+
+    # TODO: Finish writing findStraightFlush
+    @staticmethod
+    def findStraightFlush(allCards):
+        """ Returns best five card hand that can be made from the 
+        hand and the board containing a straight flush. If there are 
+        no such hands, will return None. Will not run if there are 
+        not enough cards in the hand and the board to make 5"""
+
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # Filter allCards by suit, and return the first hand we find with 5 of the same suit
+        for suit in HandHelper.suits:
+            filtCards = list(filter(lambda x: x.suit == suit, allCards))
+            if len(filtCards) >= 5:
+                return filtCards[0:5]
+
+        return None
+
+
+def main():
+    x = fullHouseTest()
+
+    while (x == None):
+        x = fullHouseTest()
+
+    return x
+    
 def countByValue(cards, value):
     """ Returns a count of how many time a certain value appears in
     a list of Cards"""
@@ -172,17 +412,69 @@ def countByValue(cards, value):
             count += 1
     return count
 
-def main():
-    return 0
-
 def pairTest():
     d = Deck()
-    board = d.deal(5)
-    print(board)
     h = Hand(2)
     h.fillHand(d)
-    print(h.cards)
-    return h.findPair(board)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findPair(cards)
+
+def twoPairTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findTwoPair(cards)
+
+def threeOfAKindTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findThreeOfAKind(cards)
+
+def straightTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findStraight(cards)
+
+def flushTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findFlush(cards)
+
+def fullHouseTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findFullHouse(cards)
+
+def fourOfAKindTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findFourOfAKind(cards)
+
+def straightFlushTest():
+    d = Deck()
+    h = Hand(2)
+    h.fillHand(d)
+    cards = h.boardCombine(d, 5)
+    print(cards)
+    return HandHelper.findStraightFlush(cards)
 
 if __name__ == "__main__" and debug == False:
     main()
