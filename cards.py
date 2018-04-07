@@ -149,6 +149,41 @@ class HandHelper:
     hands = ["Pair", "TwoPair", "ThreeOfAKind", "Straight", "Flush", "FullHouse", "FourOfAKind", "StraightFlush"]    
 
     @staticmethod
+    def findRepeats(numRepeats, allCards):
+        """ Helper method for finding hands with repeated values 
+        in a list of cards. Assuming the cards are sorted from
+        greatest to least, returns the best five card hand containing
+        the given number of repeats, or None if there aren't any."""
+        
+        # For each card in allCards, check if it has a pair
+        for card in allCards:
+            # If so, return a 5-card hand containing that pair and the highest cards after it
+            if countByValue(allCards, card.value) == numRepeats:
+                repeats = list(filter(lambda x: x.value == card.value, allCards))
+                filtCards = list(filter(lambda x: x.value != card.value, allCards))
+                return repeats + filtCards[0:(5 - numRepeats)]
+        return None
+
+    @staticmethod
+    def findFlushes(allCards):
+        """ Helper method for finding flushes and straight flushes.
+        Returns a list of ordered (greatest to least) flushes that 
+        can be made from every suit out of the cards in allCards."""
+        flushes = []
+        
+        # Filter allCards by suit, and add all hands we find with 5 of the same suit
+        for suit in HandHelper.suits:
+            filtCards = list(filter(lambda x: x.suit == suit, allCards))
+            filtLen = len(filtCards)
+
+            # If there are enough cards in filtCards to make a flush, add any ordered flushes that can be made
+            if filtLen >= 5:
+                for i in range(filtLen - 5):
+                    flushes += [filtCards[i:5 + i]]          
+
+        return flushes
+
+    @staticmethod
     def findPair(allCards):
         """ Returns best five card hand that can be made from the 
         given cards containing one pair. If there are no such hands, 
@@ -163,14 +198,7 @@ class HandHelper:
         # Sort allCards from greatest to least
         allCards.sort(reverse = True)
 
-        # For each card in allCards, check if it has a pair
-        for card in allCards:
-            # If so, return a 5-card hand containing that pair and the highest cards after it
-            if countByValue(allCards, card.value) == 2:
-                pair = list(filter(lambda x: x.value == card.value, allCards))
-                filtCards = list(filter(lambda x: x.value != card.value, allCards))
-                return pair + filtCards[0:3]
-        return None
+        return HandHelper.findRepeats(2, allCards)
 
     @staticmethod
     def findTwoPair(allCards):
@@ -216,14 +244,7 @@ class HandHelper:
         # Sort allCards from greatest to least
         allCards.sort(reverse = True)
 
-        # For each card in allCards, check if there are three of that card in allCards
-        for card in allCards:
-            # If so, return a 5-card hand containing that three of a kind and the highest cards after it
-            if countByValue(allCards, card.value) == 3:
-                three = list(filter(lambda x: x.value == card.value, allCards))
-                filtCards = list(filter(lambda x: x.value != card.value, allCards))
-                return three + filtCards[0:2]
-        return None
+        return HandHelper.findRepeats(3, allCards)
 
     @staticmethod
     def findStraight(allCards):
@@ -293,7 +314,6 @@ class HandHelper:
 
         return None
 
-    # TODO: Make sure that the flush returned is the highest possible flush
     @staticmethod
     def findFlush(allCards):
         """ Returns best five card hand that can be made from the 
@@ -309,13 +329,17 @@ class HandHelper:
         # Sort allCards from greatest to least
         allCards.sort(reverse = True)
 
-        # Filter allCards by suit, and return the first hand we find with 5 of the same suit
-        for suit in HandHelper.suits:
-            filtCards = list(filter(lambda x: x.suit == suit, allCards))
-            if len(filtCards) >= 5:
-                return filtCards[0:5]
+        # Find all the flushes we can make from allCards
+        flushes = HandHelper.findFlushes(allCards)
 
-        return None
+        # If no flushes can be made, return None
+        if flushes == []:
+            return None
+        
+        # Return the highest flush in flushes
+        else:
+            highVals = list(map(lambda x: x[0], flushes))
+            return flushes[highVals.index(max(highVals))]
 
     @staticmethod
     def findFullHouse(allCards):
@@ -361,16 +385,8 @@ class HandHelper:
         # Sort allCards from greatest to least
         allCards.sort(reverse = True)
 
-        # For each card in allCards, check if there are four of that card in allCards
-        for card in allCards:
-            # If so, return a 5-card hand containing that four of a kind and the highest card after it
-            if countByValue(allCards, card.value) == 4:
-                four = list(filter(lambda x: x.value == card.value, allCards))
-                filtCards = list(filter(lambda x: x.value != card.value, allCards))
-                return four + filtCards[0:1]
-        return None
+        return HandHelper.findRepeats(4, allCards)
 
-    # TODO: Finish writing findStraightFlush
     @staticmethod
     def findStraightFlush(allCards):
         """ Returns best five card hand that can be made from the 
@@ -386,20 +402,39 @@ class HandHelper:
         # Sort allCards from greatest to least
         allCards.sort(reverse = True)
 
-        # Filter allCards by suit, and return the first hand we find with 5 of the same suit
-        for suit in HandHelper.suits:
-            filtCards = list(filter(lambda x: x.suit == suit, allCards))
-            if len(filtCards) >= 5:
-                return filtCards[0:5]
+        # Find all the flushes we can make from allCards
+        flushes = HandHelper.findFlushes(allCards)
 
-        return None
+        # If no flushes can be made, return None
+        if flushes == []:
+            return None
+        
+        else:
+            # Find all flushes that are also straights
+            straightFlushes = []
+            for flush in flushes:
+                straightFlush = HandHelper.findStraight(flush)
+                if straightFlush != None:
+                    straightFlushes += [straightFlush]
+
+            # If no straight flushes can be made, return None
+            if straightFlushes == []:
+                return None
+
+            else:
+                # Return the highest value straight flush
+                highVals = list(map(lambda x: x[0], straightFlushes))
+                return straightFlushes[highVals.index(max(highVals))]
 
 
 def main():
-    x = fullHouseTest()
+    x = straightFlushTest()
 
-    while (x == None):
-        x = fullHouseTest()
+    while (True):
+        x = straightFlushTest()
+        if x != None:
+            if x[0].value == 14:
+                break
 
     return x
     
