@@ -25,34 +25,19 @@ class Card:
             return vals[self.value - 11] + " of " + self.suit + "s"
 
     def __eq__(self, other):
-        """ Returns whether two cards are equal"""
-        return self.value == other.value and self.suit == other.suit
+        """ Returns whether two cards are equal. Any cards of the 
+        same value are considered equal."""
+        return self.value == other.value
 
     def __gt__(self, other):
         """ Returns whether a card is considered "greater" than
-        another card. Cards with higher values are considered greater.
-        For cards of the same value, we arbitrarily determine Spades as
-        the "greatest" suit, followed by Diamonds, Hearts, and Clubs"""
-        # Create list of possible suits for reference later
-        suits = ["Club", "Heart", "Diamond", "Spade"]
-
-        if self.value != other.value:
-            return self.value > other.value
-        else:
-            return suits.index(self.suit) > suits.index(other.suit)
+        another card. Cards with higher values are considered greater."""
+        return self.value > other.value
 
     def __lt__(self, other):
         """ Returns whether a card is considered "less" than
-        another card. Cards with lower values are considered less.
-        For cards of the same value, we arbitrarily determine Spades as
-        the "greatest" suit, followed by Diamonds, Hearts, and Clubs """
-        # Create list of possible suits for reference later
-        suits = ["Club", "Heart", "Diamond", "Spade"]
-
-        if self.value != other.value:
-            return self.value < other.value
-        else:
-            return suits.index(self.suit) < suits.index(other.suit)
+        another card. Cards with lower values are considered less."""
+        return self.value < other.value
 
 
 class Deck:
@@ -130,6 +115,65 @@ class Hand:
             s += str(card) + "\n"
         return s
 
+    def equal(self, other, board):
+        """ Checks to see if two hands are of equal value (i.e. can make
+        the same value 5-card hand), given a board of community cards."""
+        # Find the best 5-card hands that can be made by each Hand and the board
+        bestHand1 = HandHelper.findBestHand(self.cards + board)
+        bestHand2 = HandHelper.findBestHand(other.cards + board)
+
+        # If the types of the best hands are different, return False
+        if bestHand1[1] != bestHand2[1]:
+            return False
+        
+        # If the types are the same, compare each of the cards in the best hands
+        for i in range(5):
+            # If any cards have different values, return False
+            if bestHand1[0][i] != bestHand2[0][i]:
+                return False
+
+        return True
+
+    def greater(self, other, board):
+        """ Checks to see if a Hand is of greater value (i.e. can make
+        a better 5-card hand), than another Hand given a board of 
+        community cards."""
+        # Find the best 5-card hands that can be made by each Hand and the board
+        bestHand1 = HandHelper.findBestHand(self.cards + board)
+        bestHand2 = HandHelper.findBestHand(other.cards + board)
+
+        # If the types of the best hands are different, return whether bestHand1 is the more valuable type
+        if bestHand1[1] != bestHand2[1]:
+            return HandHelper.types.index(bestHand1[1]) > HandHelper.types.index(bestHand2[1])
+        
+        # If the types are the same, compare each of the cards in the best hands
+        for i in range(5):
+            # If any cards have different values, return whether bestHand1 has the higher value card
+            if bestHand1[0][i] != bestHand2[0][i]:
+                return bestHand1[0][i] > bestHand2[0][i]
+
+        return True
+
+    def less(self, other, board):
+        """ Checks to see if a Hand is of greater value (i.e. can make
+        a better 5-card hand), than another Hand given a board of 
+        community cards."""
+        # Find the best 5-card hands that can be made by each Hand and the board
+        bestHand1 = HandHelper.findBestHand(self.cards + board)
+        bestHand2 = HandHelper.findBestHand(other.cards + board)
+
+        # If the types of the best hands are different, return whether bestHand1 is the less valuable type
+        if bestHand1[1] != bestHand2[1]:
+            return HandHelper.types.index(bestHand1[1]) < HandHelper.types.index(bestHand2[1])
+        
+        # If the types are the same, compare each of the cards in the best hands
+        for i in range(5):
+            # If any cards have different values, return whether bestHand1 has the lower value card
+            if bestHand1[0][i] != bestHand2[0][i]:
+                return bestHand1[0][i] < bestHand2[0][i]
+
+        return True
+
     def fillHand(self, deck):
         """ Fills a hand with numCards cards from the given Deck"""
         self.cards = deck.deal(self.numCards)
@@ -146,7 +190,7 @@ class HandHelper:
     well as for comparing different 5-card hands. """
 
     suits = ["Club", "Heart", "Diamond", "Spade"]
-    hands = ["Pair", "TwoPair", "ThreeOfAKind", "Straight", "Flush", "FullHouse", "FourOfAKind", "StraightFlush"]    
+    types = ["High", "Pair", "TwoPair", "ThreeOfAKind", "Straight", "Flush", "FullHouse", "FourOfAKind", "StraightFlush"] 
 
     @staticmethod
     def findRepeats(numRepeats, allCards):
@@ -426,17 +470,54 @@ class HandHelper:
                 highVals = list(map(lambda x: x[0], straightFlushes))
                 return straightFlushes[highVals.index(max(highVals))]
 
+    # TODO: Current implementation repeats some operations for finding certain hands that have already been done to check better hands.
+    @staticmethod
+    def findBestHand(allCards):
+        """ Returns a tuple with the best five card hand that can be 
+            made from the hand and the board, as well as a string
+            representing the type of hand. Will not run if there are 
+            not enough cards in the hand and the board to make 5"""
+        
+        # Exit if there are not enough cards
+        if len(allCards) < 5:
+            print("Not enough cards to make a poker hand.\n")
+            return
+
+        # Sort allCards from greatest to least
+        allCards.sort(reverse = True)
+
+        # Run all the checks on the cards from findStraightFlush down to findPair
+        checks = [HandHelper.findPair, HandHelper.findTwoPair, HandHelper.findThreeOfAKind, HandHelper.findStraight, HandHelper.findFlush, 
+            HandHelper.findFullHouse, HandHelper.findFourOfAKind, HandHelper.findStraightFlush]
+        numChecks = len(checks)
+
+        for i in range(numChecks):
+            hand = checks[-i - 1](allCards)
+            
+            # If we find a hand, return it and its type in a tuple
+            if hand != None:
+                return (hand, HandHelper.types[-i - 1])
+
+        # If we don't have anything better than a high card, return the first 5 cards in allCards and its type ("high")
+        return (allCards[0:5], HandHelper.types[0])
 
 def main():
-    x = straightFlushTest()
-
-    while (True):
-        x = straightFlushTest()
-        if x != None:
-            if x[0].value == 14:
-                break
-
-    return x
+    d = Deck()
+    board = d.deal(5)
+    print(board)
+    h1 = Hand(2)
+    h2 = Hand(2)
+    h1.fillHand(d)
+    h2.fillHand(d)
+    print("Hand 1:")
+    print(h1)
+    print("Hand 2:")
+    print(h2)
+    print("Best Hand 1: ")
+    print(HandHelper.findBestHand(h1.cards + board))
+    print("Best Hand 2: ")
+    print(HandHelper.findBestHand(h2.cards + board))
+    return [h1.equal(h2, board), h1.greater(h2, board), h1.less(h2, board)]
     
 def countByValue(cards, value):
     """ Returns a count of how many time a certain value appears in
