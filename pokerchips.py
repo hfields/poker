@@ -143,9 +143,6 @@ class Pot:
         amountPerPlayer as needed. If the pot is not the current pot, we just
         change the amount in the pot by amountPerPlayer"""
         if self.currentPot and newPlayer.bet > currentBet:
-            print(newPlayer.bet)
-            print(self.amount)
-            self.amount += self.amountPerPlayer
             self.Players += [newPlayer]
             self.contributions[newPlayer] = 0
             self.increaseBet(newPlayer, newPlayer.bet - currentBet)
@@ -239,7 +236,7 @@ class Table:
 
     def lastPlayer(self):
         """ Returns True if there is one player left in the pots"""
-        return len(self.Players) - len(self.foldedPlayers) == 1
+        return len(self.rotation) == 1
 
     def winningPlayer(self):
         """ Returns the last Player with chips. If more than one Player
@@ -576,7 +573,9 @@ class Table:
                 # Reallow betting for next rotation
                 for player in self.rotation:
                     player.canBet = True
-                return False
+                
+                # Return whether or not there is a single player left in the rotation
+                return self.lastPlayer()
 
     def resolvePots(self):
         """ Resolves all of pots at the end of a Round."""
@@ -872,6 +871,10 @@ def main():
     table.getPlayers()
     table.getBlinds()
 
+    gameLoop(table)
+
+def gameLoop(table):
+    """ Function for running the main game loop"""
     # Begin looping through rounds until only one player remains with chips
     Round = 0
     while True:
@@ -1038,50 +1041,7 @@ def gameTest1():
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
     table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
 
-    # Begin looping through rounds until only one player remains with chips
-    Round = 0
-    while True:
-        Round += 1
-        print("\nRound", Round)
-        # Create a flag indicating whether we should stop the betting and skip to the end
-        stopBetting = False
-
-        # Pre-flop
-        input("Pre-flop: Press enter \n")
-        table.getPreFlopRotation(Round)
-        stopBetting = table.preflop() 
-        stopBetting = stopBetting or table.allPlayersAllin()
-
-        # Flop
-        if (not stopBetting):
-            input("Flop: Deal the flop and press enter \n")
-            table.getRotation(Round)
-            stopBetting = table.postflop()
-            stopBetting = stopBetting or table.allPlayersAllin()
-
-        # Turn
-        if (not stopBetting):
-            input("Turn: Deal the turn and press enter \n")
-            table.getRotation(Round)
-            stopBetting = table.postflop()
-            stopBetting = stopBetting or table.allPlayersAllin()
-
-        # River
-        if (not stopBetting):
-            input("River: Deal the river and press enter \n")
-            table.getRotation(Round)
-            table.postflop()
-
-        # Resolve bets
-        table.resolvePots()
-
-        # If there is one Player left with chips, end the game
-        winner = table.winningPlayer()
-        if not winner == None:
-            print("Player", winner.name, "has won!")
-            break
-
-    del table
+    gameLoop(table)
 
 def gameTest2():
     # Initialize 5 example players and place them in a list
@@ -1095,50 +1055,7 @@ def gameTest2():
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
     table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
 
-    # Begin looping through rounds until only one player remains with chips
-    Round = 0
-    while True:
-        Round += 1
-        print("\nRound", Round)
-        # Create a flag indicating whether we should stop the betting and skip to the end
-        stopBetting = False
-
-        # Pre-flop
-        input("Pre-flop: Press enter \n")
-        table.getPreFlopRotation(Round)
-        stopBetting = table.preflop() 
-        stopBetting = stopBetting or table.allPlayersAllin()
-
-        # Flop
-        if (not stopBetting):
-            input("Flop: Deal the flop and press enter \n")
-            table.getRotation(Round)
-            stopBetting = table.postflop()
-            stopBetting = stopBetting or table.allPlayersAllin()
-
-        # Turn
-        if (not stopBetting):
-            input("Turn: Deal the turn and press enter \n")
-            table.getRotation(Round)
-            stopBetting = table.postflop()
-            stopBetting = stopBetting or table.allPlayersAllin()
-
-        # River
-        if (not stopBetting):
-            input("River: Deal the river and press enter \n")
-            table.getRotation(Round)
-            table.postflop()
-
-        # Resolve bets
-        table.resolvePots()
-
-        # If there is one Player left with chips, end the game
-        winner = table.winningPlayer()
-        if not winner == None:
-            print("Player", winner.name, "has won!")
-            break
-
-    del table
+    gameLoop(table)
 
 def gameTest3():
     # Initialize 2 example players and place them in a list
@@ -1150,50 +1067,7 @@ def gameTest3():
     # Initialize a table with these players, a small blind of 1 and a big blind of 2
     table = Table(Players = players, allPlayers = listCopy(players), smallBlind = 1, bigBlind = 2)
 
-    # Begin looping through rounds until only one player remains with chips
-    Round = 0
-    while True:
-        Round += 1
-        print("\nRound", Round)
-        # Create a flag indicating whether we should stop the betting and skip to the end
-        stopBetting = False
-
-        # Pre-flop
-        input("Pre-flop: Press enter \n")
-        table.getPreFlopRotation(Round)
-        stopBetting = table.preflop() 
-        stopBetting = stopBetting or table.allPlayersAllin()
-
-        # Flop
-        if (not stopBetting):
-            input("Flop: Deal the flop and press enter \n")
-            table.getRotation(Round)
-            stopBetting = table.postflop()
-            stopBetting = stopBetting or table.allPlayersAllin()
-
-        # Turn
-        if (not stopBetting):
-            input("Turn: Deal the turn and press enter \n")
-            table.getRotation(Round)
-            stopBetting = table.postflop()
-            stopBetting = stopBetting or table.allPlayersAllin()
-
-        # River
-        if (not stopBetting):
-            input("River: Deal the river and press enter \n")
-            table.getRotation(Round)
-            table.postflop()
-
-        # Resolve bets
-        table.resolvePots()
-
-        # If there is one Player left with chips, end the game
-        winner = table.winningPlayer()
-        if not winner == None:
-            print("Player", winner.name, "has won!")
-            break
-
-    del table
+    gameLoop(table)
 
 def sortTest():
     # Initialize 5 example players and place them in a list
