@@ -922,16 +922,16 @@ def gameLoop(table):
 
 def get_int(s):
     """ Returns an integer casting of user input (displays the string s 
-    to the user. Validates input to make sure that a non-negative integer
+    to the user. Validates input to make sure that a positive integer
     is input."""
     while(True):
         try:
             r = int(input(s))
         except:
-            print("Please pick a non-negative integer.\n")
+            print("Please pick a positive integer.\n")
             continue
-        if r < 0:
-            print("Please pick a non-negative integer.\n")
+        if r <= 0:
+            print("Please pick a positive integer.\n")
             continue
         else:
             return r
