@@ -30,13 +30,18 @@ class Player:
     def resolveBet(self, pot):
         """ Resolves a completed bet by awarding a pot to the winner
         or reinitializing the bet to 0 for a loser"""
+        # Award chips and reset bets
         if self.won == True:
             self.bet = 0
             self.chips += pot
         else:
             self.bet = 0
+
+        # Reset flags
         self.folded = False
         self.allin = False
+        self.canBet = True
+        self.won = False
 
     def Call(self, currentBet):
         """ Increases a player's bet to call"""
@@ -182,14 +187,38 @@ class Pot:
         else:
             return None
 
-    def resolve(self, winPlayer):
-        """ Resolves the pot in favor of the winPlayer"""
-        winPlayer.won = True
-        for player in self.Players:
-            player.resolveBet(self.amount)
+    def resolve(self, winPlayers):
+        """ Resolves the pot in favor of the winPlayers"""
+        # Print a message declaring the winning player(s)
+        if len(winPlayers) == 1:
+            print("Player", winPlayers[0].name, "has won the pot.\n")
+
+        else:
+            s = "Players "
+            for winPlayer in winPlayers[0:-1]:
+                s += winPlayer.name + ", "
+            
+            s += "and " + winPlayers[-1].name + " split the pot.\n"
+            print(s)
+
+        # Set winning player flags
+        for winPlayer in winPlayers:
+            winPlayer.won = True
+
+        # Find an even amount to award each player
+        wonChips = self.amount // len(winPlayers)
+
+        # If amount is not evenly divisible, keep track of the odd chips
+        oddChips = self.amount % len(winPlayers)
         
-        # Reset won flag
-        winPlayer.won = False
+        # Resolve bets for all Players in the pot
+        for player in self.Players:
+            # Award the odd chips to the Players at the beginning of winPlayers
+            if oddChips > 0:
+                player.resolveBet(wonChips + 1)
+                oddChips -= 1
+            else:
+                player.resolveBet(wonChips)
 
 class Table:
     """ Creates a representation of a poker table. This includes 7 lists of 
@@ -235,8 +264,22 @@ class Table:
         return all(player.allin or player.folded for player in self.Players)
 
     def lastPlayer(self):
-        """ Returns True if there is one player left in the pots"""
-        return len(self.rotation) == 1
+        """ Returns True if there is one or fewer players left in the rotation"""
+        count = 0
+        for player in self.rotation:
+            if not player.folded and not player.allin:
+                count += 1
+
+        return count <= 1
+
+    def allPlayersFolded(self):
+        """ Returns True if all players but one have folded"""
+        count = 0
+        for player in self.Players:
+            if not player.folded:
+                count += 1
+
+        return count == 1
 
     def winningPlayer(self):
         """ Returns the last Player with chips. If more than one Player
@@ -296,11 +339,18 @@ class Table:
                 if name in playernames:
                     print("That name has already been taken. Please choose another.\n")
                     continue
+                elif "," in name or " " in name:
+                    print("Player names cannot have spaces or commas. Please choose another name.\n")
+                    continue
                 else:
                     playernames += [name]
                     break
-        
-        startChips = get_int("How many chips should each player start with? ")
+
+        while True:
+            startChips = get_int("How many chips should each player start with? ")
+            if startChips < 2:
+                print("Please choose a higher number for starting chips.\n")
+                continue
         
         # Fill up Players and allPlayers
         for player in playernames:
@@ -448,8 +498,8 @@ class Table:
         # Continue until all bets are settled
         while True:
             for player in self.rotation:
-                # If there is only one player left return True
-                if self.lastPlayer():
+                # If there is one player or none left in the rotation and the remaining player does not need to bet, return True
+                if self.allPlayersFolded() or (self.lastPlayer() and player.bet >= self.currentBet):
                     return True
 
                 # If the player is not allowed to bet, continue to the next iteration
@@ -489,6 +539,7 @@ class Table:
                         else:
                             print("Please input a valid character. 'c' to call (all-in) or 'f' to fold. \n")
                             continue
+
                 else:
                     while True:
                         x = str(input(player.name + ", what action would you like to take? Type in 'c' to call/check, 'r' to raise, 'a' to go all in, or 'f' to fold. "))
@@ -547,6 +598,11 @@ class Table:
                 
                 # Player goes all-in
                 elif x == 'a':
+                    # If allIn raises the currentBet, re-allow all other players to bet
+                    if player.chips + player.bet > self.currentBet:
+                        for betPlayer in self.Players:
+                            betPlayer.canBet = True
+
                     self.allIn(player)
                     print(player, "\n")
                 
@@ -574,14 +630,40 @@ class Table:
                 for player in self.rotation:
                     player.canBet = True
                 
-                # Return whether or not there is a single player left in the rotation
+                # Return whether or not there is a single or no players left in the rotation
                 return self.lastPlayer()
+
+    def getWinners(self, pstrings, pot):
+        """ Returns a list of winning Players based on a list of their names. 
+        Will print an error message and return None to signify an invalid player
+        name in pstrings """
+        # Initialize list of players
+        players = []
+
+        # Lookup players by their name and add them to a list of winning players
+        for pstring in pstrings:
+            player = self.getPlayerByString(pstring)
+
+            # Print an error message if the given Player does not exist
+            if player == None:
+                print("Player", pstring, "does not exist. Please input a valid name.\n")
+                return None
+
+            # If the Player exists and is in the pot, add them to the players
+            elif player.inPot(pot):
+                players += [player]
+
+            # Print an error message if the given Player is not in the Pot
+            else:
+                print("This player is not in this pot. Please input a valid name.\n")
+                return None
+
+        return players
 
     def resolvePots(self):
         """ Resolves all of pots at the end of a Round."""
-
-        # Create a variable for keeping track of the last Player to win one of the pots
-        lastWinner = None
+        # Create a variable for keeping track of the last Players to win one of the pots
+        lastWinners = []
 
         for pot in self.pots:
             print(pot)
@@ -591,44 +673,46 @@ class Table:
 
             # If there is only one player in the pot, automatically resolve it in their favor
             if lastPlayer != None:
-                print("Player", lastPlayer.name, "has won the pot.\n")
-                pot.resolve(lastPlayer)
+                pot.resolve([lastPlayer])
 
             else: 
                 while True:
-                    # If the lastWinner is in this pot too, automatically resolve it in their favor
-                    if lastWinner != None:
-                        if lastWinner.inPot(pot):
-                            print("Player", lastWinner.name, "has won the pot.\n")
-                            pot.resolve(lastWinner)
-                            
-                            # Delete the pot object
-                            del pot
-                            break
+                    # Filter lastWinners based on whether or not they are in the pot
+                    lastWinners = list(filter(lambda x: x.inPot(pot), lastWinners))
+                    
+                    # If there are lastWinners in the pot, automatically resolve it in their favor
+                    if lastWinners != []:
+                        pot.resolve(lastWinners)
+                        
+                        # Delete the pot object
+                        del pot
+                        break
                     
                     else:
-                        p = str(input("Which player won this pot? "))
-                        player = self.getPlayerByString(p)
+                        p = str(input("Which player won this pot? (If multiple players split the pot, separate their names with a comma and a space) "))
 
-                        # Print an error message if the given Player does not exist
-                        if player == None:
-                            print("This player does not exist. Please input a valid name.\n")
+                        # Print an error if nothing was entered
+                        if p == "":
+                            print("Please enter at least one player.\n")
+                            continue
+                        
+                        # Convert input to list of strings
+                        pstrings = p.split(", ")
+
+                        # Get a list of players from pstrings
+                        winners = self.getWinners(pstrings, pot)
+
+                        # If we had an invalid player in our input, get the input again
+                        if winners == None:
                             continue
 
-                        # If the given Player is in the Pot, resolve it in their favor and save them as the lastWinner
-                        elif player.inPot(pot):
-                            print("Player", p, "has won the pot.\n")
-                            pot.resolve(player)
-                            lastWinner = player
+                        # Resolve the pots in favor of the winners and save them as the lastWinners
+                        pot.resolve(winners)
+                        lastWinners = winners
                             
-                            # Delete the pot object
-                            del pot
-                            break
-
-                        # Print an error message if the given Player is not in the Pot
-                        else:
-                            print("This player is not in this pot. Please input a valid name.\n")
-                            continue
+                        # Delete the pot object and break
+                        del pot
+                        break
         
         # Check if players are bankrupt
         for player in self.Players:
@@ -688,6 +772,9 @@ class Table:
     
     def allIn(self, allinPlayer):
         """ Puts a player all-in and changes the pots accordingly"""
+        # Save the Player's previous bet to keep track of how much they can contribute to pots
+        betOffset = allinPlayer.bet
+
         allinPlayer.allIn()
         # Initialize a sum to keep track of how many chips are needed to get into each successive pot
         betSum = 0
@@ -699,13 +786,13 @@ class Table:
                 # Actions will change based on whether or not the allinPlayer is in the pot
                 if allinPlayer.inPot(pot):
                     # If the player has exactly the amount of chips to stay in the pot, keep them in
-                    if allinPlayer.bet == self.currentBet:
+                    if allinPlayer.bet - betOffset == self.currentBet:
                         pot.stayIn(allinPlayer)
                         break
 
                     # If the player has less than the amount of chips needed to stay in the pot, remove them and
                     # create a new pot
-                    elif allinPlayer.bet < self.currentBet:
+                    elif allinPlayer.bet - betOffset < self.currentBet:
                         pot.removePlayer(allinPlayer)
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
                         break
@@ -722,12 +809,12 @@ class Table:
 
                 else:
                     # If the player has the exact amount of chips needed to get into the pot, add them and break
-                    if allinPlayer.bet == self.currentBet:
+                    if allinPlayer.bet - betOffset == self.currentBet:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         break
 
                     # If the player has less than the amount of chips needed to get into the pot, insert a new pot and break
-                    elif allinPlayer.bet < self.currentBet:
+                    elif allinPlayer.bet - betOffset < self.currentBet:
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
                         break
 
@@ -748,12 +835,12 @@ class Table:
                     if pot.contributions[allinPlayer] == pot.amountPerPlayer:
                         betSum += pot.amountPerPlayer
                     # If the player has the exact amount of chips needed to stay in the pot, keep them in and break 
-                    elif allinPlayer.bet == betSum + (pot.amountPerPlayer - pot.contributions[allinPlayer]):
+                    elif allinPlayer.bet - betOffset == betSum + (pot.amountPerPlayer - pot.contributions[allinPlayer]):
                         pot.stayIn(allinPlayer)
                         break
 
                     # If the player has more than the amount of chips needed to get into the pot, keep them in and increment betsum
-                    elif allinPlayer.bet > betSum + pot.amountPerPlayer:
+                    elif allinPlayer.bet - betOffset > betSum + pot.amountPerPlayer:
                         pot.stayIn(allinPlayer)
                         betSum += pot.amountPerPlayer
 
@@ -766,12 +853,12 @@ class Table:
                 
                 else:
                     # If the player has the exact amount of chips needed to get into the pot, add them and break 
-                    if allinPlayer.bet == betSum + pot.amountPerPlayer:
+                    if allinPlayer.bet - betOffset == betSum + pot.amountPerPlayer:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         break
 
                     # If the player has more than the amount of chips needed to get into the pot, add them and increment betsum
-                    elif allinPlayer.bet > betSum + pot.amountPerPlayer:
+                    elif allinPlayer.bet - betOffset > betSum + pot.amountPerPlayer:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         betSum += pot.amountPerPlayer
 
