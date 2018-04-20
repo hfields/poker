@@ -662,6 +662,10 @@ class Table:
 
     def resolvePots(self):
         """ Resolves all of pots at the end of a Round."""
+        # Print pot info
+        self.potInfo()
+        print("\n")
+
         # Create a variable for keeping track of the last Players to win one of the pots
         lastWinners = []
 
@@ -713,7 +717,7 @@ class Table:
                         # Delete the pot object and break
                         del pot
                         break
-        
+
         # Check if players are bankrupt
         for player in self.Players:
             # Resolve bets for folded players
@@ -729,7 +733,8 @@ class Table:
 
         # Remove bankrupt players from players list
         for player in self.bankruptPlayers:
-            self.Players.remove(player)
+            if player in self.Players:
+                self.Players.remove(player)
 
         # Reset folded players, resolvedAllInPlayers, and the pots list
         self.foldedPlayers = []
@@ -747,7 +752,6 @@ class Table:
                 pot.addPlayer(stayPlayer, self.currentBet)
             elif pot.contributions[stayPlayer] != pot.amountPerPlayer:
                 pot.stayIn(stayPlayer)
-
 
         # Add the player to the current pot if they aren't in it        
         if not stayPlayer.inPot(self.pots[-1]):
@@ -769,13 +773,11 @@ class Table:
                     self.pots[-1].increaseBet(stayPlayer, stayPlayer.bet - self.currentBet)
                 else:
                     self.pots[-1].stayIn(stayPlayer)
-    
+
     def allIn(self, allinPlayer):
         """ Puts a player all-in and changes the pots accordingly"""
-        # Save the Player's previous bet to keep track of how much they can contribute to pots
-        betOffset = allinPlayer.bet
-
         allinPlayer.allIn()
+        
         # Initialize a sum to keep track of how many chips are needed to get into each successive pot
         betSum = 0
 
@@ -786,13 +788,12 @@ class Table:
                 # Actions will change based on whether or not the allinPlayer is in the pot
                 if allinPlayer.inPot(pot):
                     # If the player has exactly the amount of chips to stay in the pot, keep them in
-                    if allinPlayer.bet - betOffset == self.currentBet:
+                    if allinPlayer.bet == self.currentBet:
                         pot.stayIn(allinPlayer)
                         break
 
-                    # If the player has less than the amount of chips needed to stay in the pot, remove them and
-                    # create a new pot
-                    elif allinPlayer.bet - betOffset < self.currentBet:
+                    # If the player has less than the amount of chips needed to stay in the pot, remove them and create a new pot
+                    elif allinPlayer.bet < self.currentBet:
                         pot.removePlayer(allinPlayer)
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
                         break
@@ -809,12 +810,12 @@ class Table:
 
                 else:
                     # If the player has the exact amount of chips needed to get into the pot, add them and break
-                    if allinPlayer.bet - betOffset == self.currentBet:
+                    if allinPlayer.bet == self.currentBet:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         break
 
                     # If the player has less than the amount of chips needed to get into the pot, insert a new pot and break
-                    elif allinPlayer.bet - betOffset < self.currentBet:
+                    elif allinPlayer.bet < self.currentBet:
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
                         break
 
@@ -834,13 +835,14 @@ class Table:
                     # If the player is already fully in the pot, skip it and increment betsum
                     if pot.contributions[allinPlayer] == pot.amountPerPlayer:
                         betSum += pot.amountPerPlayer
+
                     # If the player has the exact amount of chips needed to stay in the pot, keep them in and break 
-                    elif allinPlayer.bet - betOffset == betSum + (pot.amountPerPlayer - pot.contributions[allinPlayer]):
+                    elif allinPlayer.bet == betSum + pot.amountPerPlayer :
                         pot.stayIn(allinPlayer)
                         break
 
                     # If the player has more than the amount of chips needed to get into the pot, keep them in and increment betsum
-                    elif allinPlayer.bet - betOffset > betSum + pot.amountPerPlayer:
+                    elif allinPlayer.bet > betSum + pot.amountPerPlayer:
                         pot.stayIn(allinPlayer)
                         betSum += pot.amountPerPlayer
 
@@ -853,12 +855,12 @@ class Table:
                 
                 else:
                     # If the player has the exact amount of chips needed to get into the pot, add them and break 
-                    if allinPlayer.bet - betOffset == betSum + pot.amountPerPlayer:
+                    if allinPlayer.bet == betSum + pot.amountPerPlayer:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         break
 
                     # If the player has more than the amount of chips needed to get into the pot, add them and increment betsum
-                    elif allinPlayer.bet - betOffset > betSum + pot.amountPerPlayer:
+                    elif allinPlayer.bet > betSum + pot.amountPerPlayer:
                         pot.addPlayer(allinPlayer, self.currentBet)
                         betSum += pot.amountPerPlayer
 
