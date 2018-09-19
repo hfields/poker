@@ -351,6 +351,8 @@ class Table:
             if startChips < 2:
                 print("Please choose a higher number for starting chips.\n")
                 continue
+            else:
+                break
         
         # Fill up Players and allPlayers
         for player in playernames:
