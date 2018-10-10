@@ -25,8 +25,12 @@ class Card:
             return vals[self.value - 11] + " of " + self.suit + "s"
 
     def __eq__(self, other):
-        """ Returns whether two cards are equal. Any cards of the 
-        same value are considered equal."""
+        """ Returns whether two cards are equal. Cards must have the
+        same value and suit to be considered equal"""
+        return self.value == other.value and self.suit == other.suit
+
+    def eqVal(self, other):
+        """ Returns whether two cards have equal value"""
         return self.value == other.value
 
     def __gt__(self, other):
@@ -175,8 +179,9 @@ class Hand:
         return True
 
     def fillHand(self, deck):
-        """ Fills a hand with numCards cards from the given Deck"""
+        """ Fills a Hand with numCards cards from the given Deck and returns this Hand"""
         self.cards = deck.deal(self.numCards)
+        return self
 
     def boardCombine(self, deck, boardNum):
         """ Returns a list of cards from the hand and with boardNum
@@ -199,9 +204,9 @@ class HandHelper:
         greatest to least, returns the best five card hand containing
         the given number of repeats, or None if there aren't any."""
         
-        # For each card in allCards, check if it has a pair
+        # For each card in allCards, check if it has numRepeats repeats
         for card in allCards:
-            # If so, return a 5-card hand containing that pair and the highest cards after it
+            # If so, return a 5-card hand containing those repeats and the highest cards after it
             if countByValue(allCards, card.value) == numRepeats:
                 repeats = list(filter(lambda x: x.value == card.value, allCards))
                 filtCards = list(filter(lambda x: x.value != card.value, allCards))
