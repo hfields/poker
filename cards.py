@@ -108,9 +108,10 @@ class Hand:
     designated number of cards. Contains methods for determining
     the value of any 5-card hand that can be made from the hand's Cards
     and some amount of Cards on the board."""
-    def __init__(self, numCards = 0, cards = []):      
+    def __init__(self, numCards = 0, cards = [], faceUp = False):      
         self.cards = cards
         self.numCards = numCards
+        self.faceUp = faceUp
 
     def __repr__(self):
         """ Returns a string representing the given hand"""
@@ -118,6 +119,10 @@ class Hand:
         for card in self.cards:
             s += str(card) + "\n"
         return s
+
+    def flip(self):
+        """ Flips the value of faceUp"""
+        self.faceUp = not self.faceUp
 
     def equal(self, other, board):
         """ Checks to see if two hands are of equal value (i.e. can make
@@ -505,6 +510,26 @@ class HandHelper:
 
         # If we don't have anything better than a high card, return the first 5 cards in allCards and its type ("high")
         return (allCards[0:5], HandHelper.types[0])
+
+    @staticmethod
+    def findWinner(hands, board):
+        """ Returns the index of best hand out of a given array of hands,
+        given the board. If there are multiple best hands, return an array
+        of their indices."""
+
+        winners = [0]
+
+        for i in range(0, len(hands)):
+            if hands[i].greater(hands[winners[-1]], board):
+                winners = [i]
+            elif hands[i].equal(hands[winners[-1]], board):
+                winners += [i]
+
+        return winners
+
+
+
+
 
 def main():
     d = Deck()

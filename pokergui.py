@@ -48,8 +48,8 @@ faceupBoard = []
 numPlayers = 2
 handWindows = []
 hands = []
-handImages = []
-handLabels = []
+handImages = {}
+handLabels = {}
 
 def clearBoard():
     """ Destroys all labels and images associated with the board and resets the
@@ -57,12 +57,14 @@ def clearBoard():
     global boardImages
     global boardLabels
     
+    # Iterate through labels and images in boardLabels and boardImages and delete them
     for label in boardLabels:
         label.destroy()
 
     for image in boardImages:
         image.__del__()
 
+    # Reset boardImages and boardLabels
     boardImages = []
     boardLabels = []
 
@@ -73,33 +75,41 @@ def clearHands():
     global handImages
     global handLabels
 
-    for label in handLabels:
-        label.destroy()
+    # Iterate through each entry in handLabels and handImages and delete each image and label
+    for i in range(0, numPlayers):
+        for label in handLabels[i]:
+            label.destroy()
 
-    for image in handImages:
-        image.__del__()
+        for image in handImages[i]:
+            image.__del__()
 
+    # Delete all hands
     for hand in hands:
         del hand
 
+    # Reset global variables
     hands = []
-    handImages = []
-    handLabels = []
+    handImages = {}
+    handLabels = {}
 
 def addCards(root, cards):
     """ Creates labels for cards on the board"""
     global boardImages
     global boardLabels
 
-    clearBoard()
+    # Track where the next images will be added to boardImages
+    nextIndex = len(boardImages)
     
+    # Add images for the given cards to boardImages
     for card in cards:
-        boardImages += [PhotoImage(file ="Cards/" + repr(card) + ".png")]
+        boardImages += [PhotoImage(master = root, file ="Cards/" + repr(card) + ".png")]
 
-    for image in boardImages:
+    # Add labels for all of the new images
+    for image in boardImages[nextIndex:]:
         boardLabels += [Label(root, image = image)]
 
-    for label in boardLabels:
+    # Pack the labels into the top window
+    for label in boardLabels[nextIndex:]:
         label.pack(side = "left")
 
 def dealBoard():
@@ -114,8 +124,9 @@ def dealBoard():
         print("Dealing the flop...")
         deck.burn()
 
-        faceupBoard += deck.deal(3)
-        addCards(top, faceupBoard)
+        flop = deck.deal(3)
+        faceupBoard += flop
+        addCards(top, flop)
 
         state = "flop"
 
@@ -124,8 +135,9 @@ def dealBoard():
         print("Dealing the turn...")
         deck.burn()
 
-        faceupBoard += deck.deal(1)
-        addCards(top, faceupBoard)
+        turn = deck.deal(1)
+        faceupBoard += turn
+        addCards(top, turn)
 
         state = "turn"
 
@@ -134,14 +146,18 @@ def dealBoard():
         print("Dealing the river...")
         deck.burn()
 
-        faceupBoard += deck.deal(1)
-        addCards(top, faceupBoard)
+        river = deck.deal(1)
+        faceupBoard += river
+        addCards(top, river)
+
+        print(HandHelper.findWinner(hands, faceupBoard))
 
         state = "river"
 
     else:
         # Reset the deck, clear the existing widgets and reset gamestate to preflop
         print("Resetting deck...")
+
         deck.reset()
 
         clearBoard()
@@ -150,6 +166,47 @@ def dealBoard():
 
         state = "preflop"
 
+def flipCards(playerIndex):
+    global hands
+    global handWindows
+    global handImages
+    global handLabels
+
+    # If the cards are face-up, flip them face-down
+    if hands[playerIndex].faceUp:
+        # Delete the labels in this player's entry in handLabels
+        for label in handLabels[playerIndex]:
+            label.destroy()
+
+        handLabels[playerIndex] = []
+
+        # Create labels for face-down cards
+        for i in range(0, 2):
+            handLabels[playerIndex] += [Label(handWindows[playerIndex], image = handImages[playerIndex][0])]
+
+        # Display labels on window
+        for label in handLabels[playerIndex]:
+            label.pack(side = "left")
+
+    # If the cards are face-down, flip them face-ups
+    else:
+        # Delete the labels in this player's entry in handLabels
+        for label in handLabels[playerIndex]:
+            label.destroy()
+
+        handLabels[playerIndex] = []
+
+        # Create labels for face-down cards
+        for image in handImages[playerIndex][1:]:
+            handLabels[playerIndex] += [Label(handWindows[playerIndex], image = image)]
+
+        # Display labels on window
+        for label in handLabels[playerIndex]:
+            label.pack(side = "left")
+
+    # Flip the faceUp property of the given hand
+    hands[playerIndex].flip()
+
 def dealPlayers():
     global deck
     global hands
@@ -157,28 +214,32 @@ def dealPlayers():
     global handImages
     global handLabels
 
+    # Create hands for as many players as designated by numPlayers
     for i in range(0, numPlayers):
         hands += [Hand(2).fillHand(deck)]
+        handImages[i] = []
+        handLabels[i] = []
 
+        # Add the face-down card image to this entry of handImages
+        handImages[i] += [PhotoImage(master = handWindows[i], file ="Cards/Facedown.png")]
+
+        # Add the face-up images of the cards in the current hand to this entry of handImages
         for card in hands[i].cards:
-            handImages += [PhotoImage(master = handWindows[i], file ="Cards/" + repr(card) + ".png")]
-    
-        for image in handImages[i * 2:]:
-            handLabels += [Label(handWindows[i], image = image)]
+            handImages[i] += [PhotoImage(master = handWindows[i], file ="Cards/" + repr(card) + ".png")]
 
-    for label in handLabels:
-        label.pack(side = "left")
+        # Create labels for face-down cards
+        for j in range(0, 2):
+            handLabels[i] += [Label(handWindows[i], image = handImages[i][0])]
 
+        # Display labels on window
+        for label in handLabels[i]:
+            label.pack(side = "left")
+
+# Create the top level window
 top = Tk()
-
-for i in range(0, numPlayers):
-    handWindows += [Tk()]
-    handWindows[i].geometry("600x300")
-    playerString = "Player " + str(i + 1)
-    Label(handWindows[i], text = playerString).pack(side = "top")
-
 top.geometry("1200x300")
 
+# Add buttons and a face-down card to top
 dealBoardButton = Button(top, 
                    text="Deal to board", 
                    fg="red",
@@ -192,6 +253,15 @@ dealHandButton = Button(top,
 burnImage = PhotoImage(file = "Cards/Facedown.png")
 burnCard = Label(image=burnImage).pack(side = "left")
 
-top.mainloop()
+# Create new windows for each player
+for i in range(0, numPlayers):
+    handWindows += [Tk()]
+    handWindows[i].geometry("600x300")
+    playerString = "Player " + str(i + 1)
+    Label(handWindows[i], text = playerString).pack(side = "top")
+    Button(handWindows[i], 
+        text = "Flip cards",
+        fg = "red",
+        command=lambda i=i: flipCards(i)).pack()  
 
-top.destroy()
+top.mainloop()
