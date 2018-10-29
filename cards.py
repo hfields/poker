@@ -138,7 +138,7 @@ class Hand:
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return False
-            if bestHand1[0][i] != bestHand2[0][i]:
+            if bestHand1[0][i].value != bestHand2[0][i].value:
                 return False
 
         return True
@@ -158,10 +158,10 @@ class Hand:
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return whether bestHand1 has the higher value card
-            if bestHand1[0][i] != bestHand2[0][i]:
+            if bestHand1[0][i].value != bestHand2[0][i].value:
                 return bestHand1[0][i] > bestHand2[0][i]
 
-        return True
+        return False
 
     def less(self, other, board):
         """ Checks to see if a Hand is of greater value (i.e. can make
@@ -178,10 +178,10 @@ class Hand:
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return whether bestHand1 has the lower value card
-            if bestHand1[0][i] != bestHand2[0][i]:
+            if bestHand1[0][i].value != bestHand2[0][i].value:
                 return bestHand1[0][i] < bestHand2[0][i]
 
-        return True
+        return False
 
     def fillHand(self, deck):
         """ Fills a Hand with numCards cards from the given Deck and returns this Hand"""
@@ -519,7 +519,7 @@ class HandHelper:
 
         winners = [0]
 
-        for i in range(0, len(hands)):
+        for i in range(1, len(hands)):
             if hands[i].greater(hands[winners[-1]], board):
                 winners = [i]
             elif hands[i].equal(hands[winners[-1]], board):
