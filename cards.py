@@ -25,8 +25,12 @@ class Card:
             return vals[self.value - 11] + " of " + self.suit + "s"
 
     def __eq__(self, other):
-        """ Returns whether two cards are equal. Any cards of the 
-        same value are considered equal."""
+        """ Returns whether two cards are equal. Cards must have the
+        same value and suit to be considered equal"""
+        return self.value == other.value and self.suit == other.suit
+
+    def eqVal(self, other):
+        """ Returns whether two cards have equal value"""
         return self.value == other.value
 
     def __gt__(self, other):
@@ -104,9 +108,10 @@ class Hand:
     designated number of cards. Contains methods for determining
     the value of any 5-card hand that can be made from the hand's Cards
     and some amount of Cards on the board."""
-    def __init__(self, numCards = 0, cards = []):      
+    def __init__(self, numCards = 0, cards = [], faceUp = False):      
         self.cards = cards
         self.numCards = numCards
+        self.faceUp = faceUp
 
     def __repr__(self):
         """ Returns a string representing the given hand"""
@@ -114,6 +119,10 @@ class Hand:
         for card in self.cards:
             s += str(card) + "\n"
         return s
+
+    def flip(self):
+        """ Flips the value of faceUp"""
+        self.faceUp = not self.faceUp
 
     def equal(self, other, board):
         """ Checks to see if two hands are of equal value (i.e. can make
@@ -129,7 +138,7 @@ class Hand:
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return False
-            if bestHand1[0][i] != bestHand2[0][i]:
+            if bestHand1[0][i].value != bestHand2[0][i].value:
                 return False
 
         return True
@@ -149,10 +158,10 @@ class Hand:
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return whether bestHand1 has the higher value card
-            if bestHand1[0][i] != bestHand2[0][i]:
+            if bestHand1[0][i].value != bestHand2[0][i].value:
                 return bestHand1[0][i] > bestHand2[0][i]
 
-        return True
+        return False
 
     def less(self, other, board):
         """ Checks to see if a Hand is of greater value (i.e. can make
@@ -169,14 +178,15 @@ class Hand:
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return whether bestHand1 has the lower value card
-            if bestHand1[0][i] != bestHand2[0][i]:
+            if bestHand1[0][i].value != bestHand2[0][i].value:
                 return bestHand1[0][i] < bestHand2[0][i]
 
-        return True
+        return False
 
     def fillHand(self, deck):
-        """ Fills a hand with numCards cards from the given Deck"""
+        """ Fills a Hand with numCards cards from the given Deck and returns this Hand"""
         self.cards = deck.deal(self.numCards)
+        return self
 
     def boardCombine(self, deck, boardNum):
         """ Returns a list of cards from the hand and with boardNum
@@ -199,9 +209,9 @@ class HandHelper:
         greatest to least, returns the best five card hand containing
         the given number of repeats, or None if there aren't any."""
         
-        # For each card in allCards, check if it has a pair
+        # For each card in allCards, check if it has numRepeats repeats
         for card in allCards:
-            # If so, return a 5-card hand containing that pair and the highest cards after it
+            # If so, return a 5-card hand containing those repeats and the highest cards after it
             if countByValue(allCards, card.value) == numRepeats:
                 repeats = list(filter(lambda x: x.value == card.value, allCards))
                 filtCards = list(filter(lambda x: x.value != card.value, allCards))
@@ -500,6 +510,26 @@ class HandHelper:
 
         # If we don't have anything better than a high card, return the first 5 cards in allCards and its type ("high")
         return (allCards[0:5], HandHelper.types[0])
+
+    @staticmethod
+    def findWinner(hands, board):
+        """ Returns the index of best hand out of a given array of hands,
+        given the board. If there are multiple best hands, return an array
+        of their indices."""
+
+        winners = [0]
+
+        for i in range(1, len(hands)):
+            if hands[i].greater(hands[winners[-1]], board):
+                winners = [i]
+            elif hands[i].equal(hands[winners[-1]], board):
+                winners += [i]
+
+        return winners
+
+
+
+
 
 def main():
     d = Deck()
