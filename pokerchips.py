@@ -406,7 +406,7 @@ class Table:
         """ Uses the Round number to determine the betting rotation."""
         # Set indices in player list for the dealer
         playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
-        dealer = Round % (playerCount - 1)
+        dealer = (Round - 1) % playerCount
 
         # Create a temporary filtered list of players who are still in the game
         filtPlayers = [player for player in self.Players if player not in self.foldedPlayers and player not in self.resolvedAllinPlayers]
