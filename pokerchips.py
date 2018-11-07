@@ -2,14 +2,15 @@
 # 12/23/16
 
 import functools
+from cards import *
 
 debug = True
 
 class Player:
     """ Creates a representation of a player according to 4 traits: 
-    their name, how many chips they have, their current bet, whether 
+    their name, how many chips they have, their current bet, their cards, whether 
     or not they've won the current pot, and whether or not they've folded."""
-    def __init__(self, name = '', chips = 0, bet = 0, won = False, folded = False, allin = False, canBet = True):
+    def __init__(self, name = '', chips = 0, bet = 0, won = False, folded = False, allin = False, canBet = True, hand = None):
         self.name = name
         self.chips = chips
         self.bet = bet
@@ -17,6 +18,7 @@ class Player:
         self.folded = folded
         self.allin = allin
         self.canBet = canBet
+        self.hand = hand
     
     def __repr__(self):
         """ Returns a string describing the given player"""
@@ -662,7 +664,7 @@ class Table:
 
         return players
 
-    def resolvePots(self):
+    def resolvePots(self, board = None):
         """ Resolves all of pots at the end of a Round."""
         # Print pot info
         self.potInfo()
@@ -691,6 +693,24 @@ class Table:
                         pot.resolve(lastWinners)
                         
                         # Delete the pot object
+                        del pot
+                        break
+
+                    # If a board argument has been provided, automatically resolve the pot based on the Hands of the players in the pot and the board
+                    elif board != None:
+                        # Create a list of the hands of the players in the pot
+                        hands = list(map(lambda x: x.hand, pot.Players))
+                        
+                        # Find a list of the players that have won the pot
+                        winners = []
+                        for i in HandHelper.findWinner(hands, board):
+                            winners += [pot.Players[i]]
+
+                        # Resolve the pots in favor of the winners and save them as the lastWinners
+                        pot.resolve(winners)
+                        lastWinners = winners
+                            
+                        # Delete the pot object and break
                         del pot
                         break
                     

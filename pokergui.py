@@ -45,7 +45,7 @@ class Application():
             chipCount = StringVar()
             self.chipCounts += [chipCount]
             
-            chipCount.set(str(self.startingChips))
+            chipCount.set("Chips: " + str(self.startingChips))
 
             playerString = "Player " + str(i + 1) + ": " + self.playerNames[i]
             Label(self.handWindows[i], text = playerString).pack(side = "top")
@@ -178,8 +178,6 @@ class Application():
             self.faceupBoard += river
             self.addCards(river)
 
-            print(HandHelper.findWinner(self.hands, self.faceupBoard))
-
             self.state = "river"
 
             # If betting has already stopped, automatically proceed to the end
@@ -203,7 +201,8 @@ class Application():
         elif self.state == "river":
             # Disable proceed button and resolve pots 
             self.proceedButton.config(state = DISABLED)
-            self.table.resolvePots()
+
+            self.table.resolvePots(self.faceupBoard)
 
             # Re-enable the Proceed button and switch gamestate to postRound
             self.proceedButton.config(state = NORMAL)
@@ -228,7 +227,7 @@ class Application():
     def updateChips(self):
         """ Updates the chip counts of every player in the game."""
         for i in range(0, len(self.table.allPlayers)):
-            self.chipCounts[i].set(str(self.table.allPlayers[i].chips))
+            self.chipCounts[i].set("Chips: " + str(self.table.allPlayers[i].chips))
 
     def clearBoard(self):
         """ Destroys all labels and images associated with the board and resets the
@@ -325,7 +324,10 @@ class Application():
         """ Deal cards to the windows representing each Hand"""
         # Create hands for as many players as designated by numPlayers
         for i in range(0, self.numPlayers):
-            self.hands += [Hand(2).fillHand(self.deck)]
+            # Create a hand for each player and add that hand to the hands attribute so it can be displayed
+            newHand = Hand(2).fillHand(self.deck)
+            table.Players[i].hand = newHand
+            self.hands += [newHand]
             self.handImages[i] = []
             self.handLabels[i] = []
 

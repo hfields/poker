@@ -232,7 +232,7 @@ class HandHelper:
 
             # If there are enough cards in filtCards to make a flush, add any ordered flushes that can be made
             if filtLen >= 5:
-                for i in range(filtLen - 5):
+                for i in range(filtLen - 4):
                     flushes += [filtCards[i:5 + i]]          
 
         return flushes
