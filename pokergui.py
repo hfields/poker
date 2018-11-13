@@ -10,13 +10,14 @@ class Application():
         self.table = table
         self.playerNames = list(map(lambda x: x.name, table.allPlayers))
         self.numPlayers = len(self.playerNames)
+        self.numActivePlayers = self.numPlayers
         self.startingChips = table.allPlayers[0].chips
         self.deck = Deck()
         self.boardImages = []
         self.boardLabels = []
         self.faceupBoard = []
         self.handWindows = []
-        self.hands = []
+        self.hands = {}
         self.chipCounts = []
         self.handImages = {}
         self.handLabels = {}
@@ -222,6 +223,9 @@ class Application():
             self.clearHands()
             self.faceupBoard = []
 
+            # Check to see if Players should be removed from the game or if the game is finished
+            self.updatePlayers()
+
             self.state = "preRound"
 
     def updateChips(self):
@@ -249,21 +253,47 @@ class Application():
         then resets all associated lists to empty"""
 
         # Iterate through each entry in handLabels and handImages and delete each image and label
-        for i in range(0, self.numPlayers):
+        for i in self.handLabels.keys():
             for label in self.handLabels[i]:
                 label.destroy()
 
             for image in self.handImages[i]:
                 image.__del__()
 
-        # Delete all hands
-        for hand in self.hands:
-            del hand
+        # Delete all player hands
+        for key in self.hands:
+            del self.table.allPlayers[key].hand
 
         # Reset global variables
-        self.hands = []
-        self.handImages = {}
-        self.handLabels = {}
+        self.hands.clear()
+        self.handImages.clear()
+        self.handLabels.clear()
+
+    def updatePlayers(self):
+        """ Check for newly-bankrupted Players, close their windows and
+        update numActivePlayers"""
+        # Iterate through the indices of all the Players who were in the game at the start
+        for i in range(self.numPlayers):
+            # Find Players who are bankrupt and have not had their windows destroyed yet
+            if self.handWindows[i] != None and self.table.allPlayers[i] in self.table.bankruptPlayers:
+                # Destroy the player window, set it to None in handWindows, and decrement numActivePlayers
+                self.handWindows[i].destroy()
+                self.handWindows[i] = None
+                self.numActivePlayers -= 1
+
+        # If there is a single player left, initiate victory
+        if self.numActivePlayers == 1:
+            self.initiateVictory()
+
+    def initiateVictory(self):
+        """ Closes player windows and prints a victory message for the winning Player"""
+        for window in self.handWindows:
+            if window != None:
+                window.destroy()
+
+        winner = table.winningPlayer()
+        Label(text = "Congratulations! " + winner.name + " has won!", height = 30).pack()
+        print("Player", winner.name, "has won!")
 
     def addCards(self, cards):
         """ Creates labels for cards on the board"""
@@ -322,28 +352,29 @@ class Application():
 
     def dealPlayers(self):
         """ Deal cards to the windows representing each Hand"""
-        # Create hands for as many players as designated by numPlayers
-        for i in range(0, self.numPlayers):
+        # Create hands for as many players as designated by numActivePlayers
+        for i in range(0, self.numActivePlayers):
             # Create a hand for each player and add that hand to the hands attribute so it can be displayed
             newHand = Hand(2).fillHand(self.deck)
             table.Players[i].hand = newHand
-            self.hands += [newHand]
-            self.handImages[i] = []
-            self.handLabels[i] = []
+            playerIndex = table.allPlayers.index(table.Players[i])
+            self.hands[playerIndex] = newHand
+            self.handImages[playerIndex] = []
+            self.handLabels[playerIndex] = []
 
             # Add the face-down card image to this entry of self.handImages
-            self.handImages[i] += [PhotoImage(master = self.handWindows[i], file ="Cards/Facedown.png")]
+            self.handImages[playerIndex] += [PhotoImage(master = self.handWindows[playerIndex], file ="Cards/Facedown.png")]
 
             # Add the face-up images of the cards in the current hand to this entry of self.handImages
-            for card in self.hands[i].cards:
-                self.handImages[i] += [PhotoImage(master = self.handWindows[i], file ="Cards/" + repr(card) + ".png")]
+            for card in newHand.cards:
+                self.handImages[playerIndex] += [PhotoImage(master = self.handWindows[playerIndex], file ="Cards/" + repr(card) + ".png")]
 
             # Create labels for face-down cards
             for j in range(0, 2):
-                self.handLabels[i] += [Label(self.handWindows[i], image = self.handImages[i][0])]
+                self.handLabels[playerIndex] += [Label(self.handWindows[playerIndex], image = self.handImages[playerIndex][0])]
 
             # Display labels on window
-            for label in self.handLabels[i]:
+            for label in self.handLabels[playerIndex]:
                 label.pack(side = "left")
 
 # Initialize the poker table
