@@ -344,6 +344,9 @@ class Table:
                 elif "," in name or " " in name:
                     print("Player names cannot have spaces or commas. Please choose another name.\n")
                     continue
+                elif name == "":
+                    print("Please enter a name.\n")
+                    continue
                 else:
                     playernames += [name]
                     break
@@ -419,8 +422,9 @@ class Table:
         for i in range((dealer + 1) % playerCount):
             self.rotation += [filtPlayers[i]]
 
-    def preflop(self):
-        """ Handles the pre-flop betting rotation"""
+    def preflop(self, application = None):
+        """ Handles the pre-flop betting rotation. Takes an optional application
+        argument to designate when the game is being run with its GUI"""
         # Handle small blind
         if self.rotation[-2].chips > self.smallBlind:
             print("Player", self.rotation[-2].name, "is small blind, and starts with a bet of", self.smallBlind, "chips.")
@@ -457,46 +461,59 @@ class Table:
             
         self.createPots()
 
-        # If bettingRotation exited with a True, return True (to end betting)
-        if self.bettingRotation():
+        # Only continue to the betting rotation if an application has not been provided
+        if application == None:
+            # If bettingRotation exited with a True, return True (to end betting)
+            if self.bettingRotation():
+                # Reset rotation
+                self.rotation = []
+                return True
+
             # Reset rotation
             self.rotation = []
-            return True
 
-        # Reset rotation
-        self.rotation = []
+            # Print info
+            self.playerInfo(self.Players)
+            self.potInfo()
+            print("\n")
 
-        # Print info
-        self.playerInfo(self.Players)
-        self.potInfo()
-        print("\n")
+            return False
 
-        return False
+        else:
+            # Update chip counts in the GUI, if applicable
+            application.updateChips()
 
-    def postflop(self):
-        """ Handles betting rotations past the pre-flop rotation"""
+    def postflop(self, application = None):
+        """ Handles betting rotations past the pre-flop rotation. Takes an optional application
+        argument to designate when the game is being run with its GUI"""
         # Reset currentBet and player bets
         self.currentBet = 0
         for player in self.Players:
             player.bet = 0
 
-        # If bettingRotation exited with a True, return True (to end betting)
-        if self.bettingRotation():
+        # Only continue to the betting rotation if an application has not been provided
+        if application == None:
+            # If bettingRotation exited with a True, return True (to end betting)
+            if self.bettingRotation(application):
+                # Reset rotation
+                self.rotation = []
+                return True
+
             # Reset rotation
             self.rotation = []
-            return True
 
-        # Reset rotation
-        self.rotation = []
+            # Print info
+            self.playerInfo(self.Players)
+            self.potInfo()
+            print("\n")
 
-        # Print info
-        self.playerInfo(self.Players)
-        self.potInfo()
-        print("\n")
+            return False
+        
+        else:
+            # Update chip counts in the GUI, if applicable
+            application.updateChips()
 
-        return False
-
-    def bettingRotation(self):
+    def bettingRotation(self, application = None):
         """ Handles a single betting rotation. Returns True if only 1 player
         is still in the pot, False otherwise"""
         # Continue until all bets are settled
@@ -519,7 +536,21 @@ class Table:
                 # Player has not enough or just enough chips to match the current bet
                 if player.chips <= self.currentBet - player.bet:
                     while True:
-                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold. "))
+                        # Get input from GUI if application is given, or from text terminal otherwise
+                        if (application != None):
+                            # Enable the GUI betting buttons
+                            application.enableBetting(player)
+
+                            # Wait for the bettingOngoing attribute to change
+                            while application.bettingOngoing == "none":
+                                input()
+
+                            # Disable betting buttons and set x to bettingOngoing
+                            application.disableBetting(player)  
+                            x = application.bettingOngoing
+                        else:     
+                            x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call (all-in) or 'f' to fold. "))
+                        
                         if x == 'c' or x == 'f':
                             break
                         # Debugger only command. Exits betting rotation function
@@ -533,7 +564,21 @@ class Table:
                 # Player has enough chips to call but not to raise
                 elif player.chips < 2 * self.currentBet - player.bet:
                     while True:
-                        x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold. "))
+                        # Get input from GUI if application is given, or from text terminal otherwise
+                        if (application != None):
+                            # Enable the GUI betting buttons
+                            application.enableBetting(player)
+
+                            # Wait for the bettingOngoing attribute to change
+                            while application.bettingOngoing == "none":
+                                input()
+
+                            # Disable betting buttons and set x to bettingOngoing
+                            application.disableBetting(player)  
+                            x = application.bettingOngoing
+                        else:     
+                            x = str(input(player.name + ", what action would you like to take? You do not have enough chips to raise. Type in 'c' to call, 'a' to go all-in, or 'f' to fold. "))
+                        
                         if x == 'c' or x == 'a' or x == 'f':
                             break
                         # Debugger only command. Exits betting rotation function
@@ -546,7 +591,21 @@ class Table:
 
                 else:
                     while True:
-                        x = str(input(player.name + ", what action would you like to take? Type in 'c' to call/check, 'r' to raise, 'a' to go all in, or 'f' to fold. "))
+                        # Get input from GUI if application is given, or from text terminal otherwise
+                        if (application != None):
+                            # Enable the GUI betting buttons
+                            application.enableBetting(player)
+
+                            # Wait for the bettingOngoing attribute to change
+                            while application.bettingOngoing == "none":
+                                input()
+
+                            # Disable betting buttons and set x to bettingOngoing
+                            application.disableBetting(player)  
+                            x = application.bettingOngoing
+                        else:     
+                            x = str(input(player.name + ", what action would you like to take? Type in 'c' to call/check, 'r' to raise, 'a' to go all in, or 'f' to fold. "))
+                        
                         if x == 'c' or x == 'r' or x == 'a' or x == 'f':
                             break
                         # Debugger only command. Exits betting rotation function
@@ -614,6 +673,10 @@ class Table:
                 elif x == 'f':
                     self.fold(player)
                     print(player, "\n")
+
+                # If an application is provided, update the chips
+                if application != None:
+                    application.updateChips()
             
             # Remove folded players from rotation
             for player in self.foldedPlayers:

@@ -6,31 +6,51 @@ from functools import *
 class Application():
     def __init__(self, table, master, state = "preRound"):
         self.state = state
+        self.states = ["preRound", "preflopBetting", "preflop", "flopBetting", "flop", "turnBetting", "turn", "riverBetting", "river", "postRound"]
         self.master = master
         self.table = table
+        
         self.playerNames = list(map(lambda x: x.name, table.allPlayers))
         self.numPlayers = len(self.playerNames)
         self.numActivePlayers = self.numPlayers
         self.startingChips = table.allPlayers[0].chips
+        
         self.deck = Deck()
         self.boardImages = []
         self.boardLabels = []
         self.faceupBoard = []
+        
+        # Player window variables
         self.handWindows = []
         self.hands = {}
         self.chipCounts = []
+        self.bets = []
         self.handImages = {}
         self.handLabels = {}
-        self.round = 0
-        self.stopBetting = False
+        self.callButtons = {}
+        self.raiseButtons = {}
+        self.raiseSliders = {}
+        self.allinButtons = {}
+        self.foldButtons = {}
 
-        # Add buttons and a face-down card to top
+        # Main window label variables
+        self.currentBet = StringVar()
+        self.potString = StringVar()
+        
+        # Variables for conducting betting
+        self.round = 0
+        self.rotationQueue = []
+        self.stopBetting = False
+        self.bettingOngoing = False
+
+        # Add buttons and a face-down card to main window
         self.proceedButton = Button(self.master, 
                         text="Proceed", 
                         fg="red",
                         command=lambda: self.proceed())
         self.proceedButton.pack()
 
+        # Add a quit button to close all windows
         quitButton = Button(self.master, 
                         text="Quit", 
                         fg="red",
@@ -38,24 +58,82 @@ class Application():
     
         self.burnImage = PhotoImage(file = "Cards/Facedown.png")
         burnCard = Label(image=self.burnImage).pack(side = "left")
+
+        # Add a label for the current bet and the pots
+        self.currentBet.set("Current bet: 0")
+        Label(textvariable = self.currentBet).pack(side = "top")
+        self.potString.set("Main pot: 0")
+        Label(textvariable = self.potString).pack(side = "top")
   
         # Create new windows for each player
         for i in range(0, self.numPlayers):
             self.handWindows += [Toplevel()]
-            self.handWindows[i].geometry("600x300")
+            self.handWindows[i].geometry("600x400")
             chipCount = StringVar()
+            bet = StringVar()
             self.chipCounts += [chipCount]
+            self.bets += [bet]
             
             chipCount.set("Chips: " + str(self.startingChips))
+            bet.set("Bet: 0")
 
             playerString = "Player " + str(i + 1) + ": " + self.playerNames[i]
             Label(self.handWindows[i], text = playerString).pack(side = "top")
             Label(self.handWindows[i], textvariable = chipCount).pack(side = "top")
+            Label(self.handWindows[i], textvariable = bet).pack(side = "top")
 
             Button(self.handWindows[i], 
                 text = "Flip cards",
                 fg = "red",
                 command=lambda i=i: self.flipCards(i)).pack()
+            
+            # Initialize betting option buttons for the window
+            callButton = Button(self.handWindows[i], 
+                text = "Call",
+                fg = "red",
+                state = DISABLED,
+                command=lambda i=i: self.setBet(self.table.allPlayers[i], "c"))
+            
+            raiseButton = Button(self.handWindows[i], 
+                text = "Raise",
+                fg = "red",
+                state = DISABLED,
+                command=lambda i=i: self.setBet(self.table.allPlayers[i], "r"))
+
+            # Invert to and from_ so that slider increases upward
+            raiseSlider = Scale(self.handWindows[i],
+                to = self.table.bigBlind,
+                from_ = self.startingChips - self.table.bigBlind,
+                state = DISABLED)
+
+            # Start slider at bottom
+            raiseSlider.set(self.table.bigBlind)
+
+            allinButton = Button(self.handWindows[i], 
+                text = "All-in",
+                fg = "red",
+                state = DISABLED,
+                command=lambda i=i: self.setBet(self.table.allPlayers[i], "a"))
+
+            foldButton = Button(self.handWindows[i], 
+                text = "Fold",
+                fg = "red",
+                state = DISABLED,
+                command=lambda i=i: self.setBet(self.table.allPlayers[i], "f"))
+
+            # Track the buttons/sliders in their appropriate dictionaries
+            self.callButtons[i] = callButton
+            self.raiseSliders[i] = raiseSlider
+            self.raiseButtons[i] = raiseButton
+            self.allinButtons[i] = allinButton
+            self.foldButtons[i] = foldButton
+            
+            # Pack the buttons/sliders to the windows
+            callButton.pack(side = "right")
+            raiseSlider.pack(side = "right")
+            raiseButton.pack(side = "right")
+            allinButton.pack(side = "right")
+            foldButton.pack(side = "right")
 
     def proceed(self):
         """ Proceeds to the next step in the game, based on the current state and certain
@@ -68,33 +146,80 @@ class Application():
 
             # Reset stopBetting and update state
             self.stopBetting = False
-            self.state = "preflop"
+            self.state = "preflopBetting"
             
-            # Deal players and run a pre-flop betting rotation
+            # Deal players and set up a pre-flop betting rotation
             self.dealPlayers()
-            table.getPreFlopRotation(self.round)
-            self.stopBetting = self.table.preflop()
+            self.table.getPreFlopRotation(self.round)
+            self.preflopSetup()
 
-            # Re-enable the Proceed button and check to see if betting should stop
-            self.proceedButton.config(state = NORMAL)
-            self.stopBetting = self.stopBetting or self.table.allPlayersAllin()
-            
-            # If betting should stop, automatically proceed through dealing the cards
-            if self.stopBetting:
-                self.proceed()
-            
-            # Otherwise, prompt to proceed to the flop
-            else:
-                self.updateChips()
-                print("Pre-flop betting concluded. Press Proceed to deal flop")
+            # Pop the first Player from the queue
+            self.getNextPlayer()
+
+        # If we are in a betting round, handle the betting
+        elif self.state[-7:] == "Betting":
+            # Remove folded players from rotation
+            for player in self.table.foldedPlayers:
+                if player in self.table.rotation:
+                    self.table.rotation.remove(player)
         
-        else:
-            self.dealBoard()
+            # Remove all-in players from rotation and move them from allinPlayers to resolved players
+            for player in self.table.allinPlayers:
+                self.table.rotation.remove(player)
+                self.table.resolvedAllinPlayers += [player]
 
-    def dealBoard(self):
-        """ Deals the community cards to the board"""
-        # Switch depending on the game state
-        if self.state == "preflop":
+            # Clear allinPlayers
+            self.table.allinPlayers = []
+
+            # If the rotationQueue is not yet empty, move on to the next Player
+            if len(self.rotationQueue) != 0:
+                self.getNextPlayer()
+
+            else:
+                # If everyone left in the rotation has not met the current bet, redo the rotation
+                if not all(player.bet >= self.table.currentBet for player in self.table.rotation):
+                    self.fillQueue()
+                    self.proceed()
+
+                else:
+                    # Progress game state
+                    self.state = self.states[self.states.index(self.state) + 1]
+
+                    # Reallow betting for next rotation
+                    for player in self.table.rotation:
+                        player.canBet = True
+
+                    # Set stopBetting based on whether or not there is a single or no players left in the rotation
+                    self.stopBetting = self.table.lastPlayer()
+
+                    # Re-enable the Proceed button and check to see if betting should stop
+                    self.proceedButton.config(state = NORMAL)
+                    self.stopBetting = self.stopBetting or self.table.allPlayersAllin()
+
+                    # Reset rotation
+                    self.table.rotation = []
+                    
+                    # If betting should stop, automatically proceed through dealing the cards
+                    if self.stopBetting:
+                        self.proceed()
+                    
+                    # Otherwise, prompt to proceed to the next state
+                    else:
+                        self.updateChips()
+
+                        if self.state == "preflop":
+                            print("Pre-flop betting concluded. Press Proceed to deal the flop.")
+
+                        elif self.state == "flop":
+                            print("Flop betting concluded. Press Proceed to deal the turn.")
+                        
+                        elif self.state == "turn":
+                            print("Turn betting concluded. Press Proceed to deal the river.")
+
+                        elif self.state == "river":
+                            print("River betting concluded. Press Proceed to resolve pots.")
+        
+        elif self.state == "preflop":
             # Disable Proceed button
             self.proceedButton.config(state = DISABLED)
 
@@ -114,22 +239,16 @@ class Application():
             else:
                 # Conduct flop betting
                 print("FLOP")
+
+                # Set state
+                self.state = "flopBetting"
+
+                # Set up a betting rotation
                 self.table.getRotation(self.round)
-
-                # Run a betting rotation
-                self.stopBetting = self.table.postflop()
-
-                # Re-enable the Proceed button and check to see if betting should continue
-                self.proceedButton.config(state = NORMAL)
-                self.stopBetting = self.stopBetting or self.table.allPlayersAllin()
-
-                # If betting should stop, automatically proceed to the end
-                if self.stopBetting:
-                    self.proceed()
-
-                else:
-                    self.updateChips()
-                    print("Flop betting concluded. Press Proceed to deal turn")
+                self.postflopSetup()
+                
+                # Pop the first Player from the queue
+                self.getNextPlayer()
 
         elif self.state == "flop":
             # Disable Proceed button
@@ -151,22 +270,16 @@ class Application():
             else:
                 # Conduct turn betting
                 print("TURN")
-                self.table.getRotation(self.round)
                 
-                # Run a betting rotation
-                self.stopBetting = self.table.postflop()
+                # Set state
+                self.state = "turnBetting"
 
-                # Re-enable the Proceed button and check to see if betting should continue
-                self.proceedButton.config(state = NORMAL)
-                self.stopBetting = self.stopBetting or self.table.allPlayersAllin()
-
-                # If betting should stop, automatically proceed to the end
-                if self.stopBetting:
-                    self.proceed()
-
-                else:
-                    self.updateChips()
-                    print("Turn betting concluded. Press Proceed to deal river")
+                # Set up a betting rotation
+                self.table.getRotation(self.round)
+                self.postflopSetup()
+                
+                # Pop the first Player from the queue
+                self.getNextPlayer()
 
         elif self.state == "turn":
             # Disable Proceed button
@@ -188,16 +301,16 @@ class Application():
             else:
                 # Conduct river betting
                 print("RIVER")
+                
+                # Set state
+                self.state = "riverBetting"
+
+                # Set up a betting rotation
                 self.table.getRotation(self.round)
-
-                # Run a betting rotation
-                self.table.postflop()
-
-                # Re-enable the Proceed button
-                self.proceedButton.config(state = NORMAL)
-
-                self.updateChips()
-                print("All betting concluded. Press Proceed to resolve pots.")
+                self.postflopSetup()
+                
+                # Pop the first Player from the queue
+                self.getNextPlayer()
 
         elif self.state == "river":
             # Disable proceed button and resolve pots 
@@ -228,10 +341,192 @@ class Application():
 
             self.state = "preRound"
 
+    def getNextPlayer(self):
+        """ Pop a Player from the rotation queue and enable their betting buttons. If
+        the Player shouldn't be betting for whatever reason, call proceed so another
+        Player can be popped"""
+        # Pop another Player from the queue
+        player = self.rotationQueue.pop()
+
+        # If there is one player or none left in the rotation and the remaining player does not need to bet, clear the queue and proceed
+        if self.table.allPlayersFolded() or (self.table.lastPlayer() and player.bet >= self.table.currentBet):
+            self.rotationQueue.clear()
+            self.proceed()
+
+        # If the player is not allowed to bet, continue to the next iteration
+        elif not player.canBet:
+            self.proceed()
+
+        # Otherwise, enable the Player's betting buttons
+        else:
+            self.enableBetting(player)
+
+    def preflopSetup(self):
+        """ Sets up the pre-flop betting rotation."""
+        # Set up the blinds and the pot and fill the rotation queue
+        self.table.preflop(self)
+        self.fillQueue()
+
+    def postflopSetup(self):
+        """ Sets up a post-flop betting rotation."""
+        # Set up the starting bets and fill the rotation queue
+        self.table.postflop(self)
+        self.fillQueue()
+
+    def fillQueue(self):
+        """ Fills up the rotation queue with the Players from the table's
+        rotation attribute"""
+        # Fill up the rotation queue
+        for player in self.table.rotation:
+            self.rotationQueue = [player] + self.rotationQueue
+
     def updateChips(self):
-        """ Updates the chip counts of every player in the game."""
+        """ Updates the chip counts of every player in the game and the
+        current bet."""
+        # Update variables for player windows
         for i in range(0, len(self.table.allPlayers)):
             self.chipCounts[i].set("Chips: " + str(self.table.allPlayers[i].chips))
+            self.bets[i].set("Bet: " + str(self.table.allPlayers[i].bet))
+
+        # Update variables for main window
+        self.currentBet.set("Current bet: " + str(self.table.currentBet))
+        pots = self.table.pots
+
+        if len(pots) == 0:
+            pString = "Main pot: 0"
+
+        else:
+            pString = "Main pot: " + str(pots[0].amount)
+            for pot in pots[1:]:
+                pString += "    Side pot: " + str(pot.amount)
+        
+        self.potString.set(pString)
+
+    def enableBetting(self, player):
+        """ Finds the action the given player wants to take while betting"""
+        # Reset bettingOngoing to "none" and find the index of the given Player
+        self.bettingOngoing = "none"
+        playerIndex = self.table.allPlayers.index(player)
+
+        # Find the appropriate bounds for the slider
+        minRaise = self.table.currentBet if self.table.currentBet != 0 else self.table.bigBlind
+        maxRaise = player.chips - (self.table.currentBet - player.bet)
+
+        # If the player doesn't have enough chips to raise, or has just enough, set minRaise and maxRaise to the player's remaining chips
+        if maxRaise <= 0:
+            maxRaise = player.chips
+            minRaise = player.chips
+        
+        # Change raising slider bounds as is appropriate and enable it
+        raiseSlider = self.raiseSliders[playerIndex]
+        raiseSlider.config(
+            to = minRaise, 
+            from_ = maxRaise,
+            state = NORMAL)
+
+        # Start slider at bottom
+        raiseSlider.set(minRaise)
+
+        # Enable betting buttons for the given Player
+        self.callButtons[playerIndex].config(state = NORMAL)
+        self.raiseButtons[playerIndex].config(state = NORMAL)
+        self.allinButtons[playerIndex].config(state = NORMAL)
+        self.foldButtons[playerIndex].config(state = NORMAL)
+
+    def disableBetting(self, player):
+        # Find the index of the given Player
+        playerIndex = self.table.allPlayers.index(player)
+
+        # Reset slider value and range and disable it
+        raiseSlider = self.raiseSliders[playerIndex]
+        raiseSlider.config(
+            to = 0,
+            from_ = 0,
+            state = DISABLED)
+        raiseSlider.set(0)
+
+        # Disable betting buttons for the given Player
+        self.callButtons[playerIndex].config(state = DISABLED)
+        self.raiseButtons[playerIndex].config(state = DISABLED)
+        self.allinButtons[playerIndex].config(state = DISABLED)
+        self.foldButtons[playerIndex].config(state = DISABLED)
+
+    def setBet(self, player, x):
+        """ Handles a given player's bet based on the string provided. A
+        "c" indicates a call, an "r" indicates a raise, an "a" indicates
+        all-in, and an "f" indicates a fold"""
+        print(player)
+        # Player calls/checks
+        if x == 'c':
+            # Prevent the player from betting again until someone else raises
+            player.canBet = False
+
+            if self.table.currentBet == player.bet:
+                print("Player", player.name, "has checked. \n")
+            elif self.table.currentBet - player.bet >= player.chips:
+                self.table.allIn(player)
+                print(player, "\n")
+            else:
+                print("Player", player.name, "has called. \n")
+                player.Call(self.table.currentBet)
+                self.table.stay(player)
+        
+        # Player raises
+        elif x == 'r':
+            while True:
+                # Re-allow all other players to bet
+                for betPlayer in self.table.Players:
+                    betPlayer.canBet = True
+                
+                # Prevent the player from betting again until someone else raises
+                player.canBet = False
+
+                r = self.raiseSliders[self.table.allPlayers.index(player)].get()
+                if r == player.chips - (self.table.currentBet - player.bet):
+                    self.table.allIn(player)
+                    print(player, "\n")
+                    break
+                
+                # TODO: Remove, this check should be done by restricting slider values
+                elif r > player.chips - (self.table.currentBet - player.bet):
+                    print("You do not have enough chips to raise by that amount. \n")
+                    continue
+                
+                elif r >= self.table.currentBet:
+                    player.Raise(self.table.currentBet, r)
+                    self.table.stay(player)
+                    self.table.currentBet += r
+                    print("Player", player.name, "has raised to", self.table.currentBet, "\n")
+                    break
+                
+                # TODO: Remove, this check should be done by restricting slider values
+                else:
+                    print("You must raise by at least as much as the current bet:", self.table.currentBet,"\n")
+                    continue
+        
+        # Player goes all-in
+        elif x == 'a':
+            # If allIn raises the currentBet, re-allow all other players to bet
+            if player.chips + player.bet > self.table.currentBet:
+                for betPlayer in self.table.Players:
+                    betPlayer.canBet = True
+
+            self.table.allIn(player)
+            print(player, "\n")
+        
+        # Player folds            
+        elif x == 'f':
+            self.table.fold(player)
+            print(player, "\n")
+
+        # Update the chips
+        self.updateChips()
+
+        # Disable betting buttons
+        self.disableBetting(player)
+
+        # Proceed to the next Player (or to the end of betting)
+        self.proceed()
 
     def clearBoard(self):
         """ Destroys all labels and images associated with the board and resets the
@@ -386,7 +681,7 @@ table.getBlinds()
 
 # Create the top level window
 top = Tk()
-top.geometry("1200x300")
+top.geometry("1200x450")
 
 app = Application(table, top)
 
