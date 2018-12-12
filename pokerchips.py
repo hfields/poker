@@ -425,7 +425,7 @@ class Table:
     def preflop(self, application = None):
         """ Handles the pre-flop betting rotation. Takes an optional application
         argument to designate when the game is being run with its GUI"""
-        # Handle small blind
+        # Handle small blind, removing the player from the rotation if it puts them all-in
         if self.rotation[-2].chips > self.smallBlind:
             print("Player", self.rotation[-2].name, "is small blind, and starts with a bet of", self.smallBlind, "chips.")
             self.rotation[-2].Call(self.smallBlind)
@@ -438,7 +438,7 @@ class Table:
             self.rotation[-2].allIn()
             self.allinPlayers += [self.rotation.pop(-2)]
         
-        # Handle big blind
+        # Handle big blind, removing the player from the rotation if it puts them all-in
         if self.rotation[-1].chips > self.bigBlind:
             print("Player", self.rotation[-1].name, "is big blind, and starts with a bet of", self.bigBlind, "chips.\n")
             self.rotation[-1].Call(self.bigBlind)
@@ -971,7 +971,7 @@ class Table:
         self.foldedPlayers += [foldPlayer]
 
     def createPots(self):
-        # Sort the allinPlayers from least to greatest
+        # Sort the allinPlayers from least chips to greatest
         self.allinPlayers = chipMSort(self.allinPlayers)
         
         # Iterate through the players who are all-in but haven't had their bets put into pots yet
@@ -980,8 +980,13 @@ class Table:
             
             # If there are no pots so far, create the main pot
             if self.pots == []:
-                self.pots += [Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = True)]
-            
+                pot = Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = [player] + self.rotation[-2:], mainPot = True)
+                self.pots += [pot]
+                
+                # Add in bet of other blind, if they weren't also all-in
+                for otherPlayer in self.rotation:
+                    pot.amount += otherPlayer.bet
+                                
             # Otherwise, create the next side pot
             else:
                 self.pots += [Pot(amount = player.bet - self.pots[i - 1].amountPerPlayer * (len(self.allinPlayers) - i), Players = self.allinPlayers[i:], mainPot = False)]

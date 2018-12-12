@@ -41,7 +41,7 @@ class Application():
         self.round = 0
         self.rotationQueue = []
         self.stopBetting = False
-        self.bettingOngoing = False
+        self.allPlayersFolded = False
 
         # Add buttons and a face-down card to main window
         self.proceedButton = Button(self.master, 
@@ -144,9 +144,16 @@ class Application():
             # Disable Proceed button
             self.proceedButton.config(state = DISABLED)
 
-            # Reset stopBetting and update state
+            # Reset stopBetting, allPlayersFolded, and rotationQueue and update state
             self.stopBetting = False
+            self.allPlayersFolded = False
+            self.rotationQueue.clear()
             self.state = "preflopBetting"
+
+            # Un-fold and re-enable players to bet, if needed
+            for player in self.table.Players:
+                player.canBet = True
+                player.folded = False
             
             # Deal players and set up a pre-flop betting rotation
             self.dealPlayers()
@@ -189,8 +196,9 @@ class Application():
                     for player in self.table.rotation:
                         player.canBet = True
 
-                    # Set stopBetting based on whether or not there is a single or no players left in the rotation
+                    # Set stopBetting and allPlayersFolded based on table methods
                     self.stopBetting = self.table.lastPlayer()
+                    self.allPlayersFolded = self.table.allPlayersFolded()
 
                     # Re-enable the Proceed button and check to see if betting should stop
                     self.proceedButton.config(state = NORMAL)
@@ -199,8 +207,10 @@ class Application():
                     # Reset rotation
                     self.table.rotation = []
                     
-                    # If betting should stop, automatically proceed through dealing the cards
-                    if self.stopBetting:
+                    # If all players have folded, proceed immediately to pot resolution
+                    if self.allPlayersFolded:
+                        print("All players but one have folded. Proceeding to pot resolution")
+                        self.state = "river"
                         self.proceed()
                     
                     # Otherwise, prompt to proceed to the next state
@@ -232,9 +242,10 @@ class Application():
 
             self.state = "flop"
 
-            # If betting has already stopped, automatically proceed to the end
+            # If betting has already stopped, don't conduct betting
             if self.stopBetting:
-                self.proceed()
+                self.proceedButton.config(state = NORMAL)
+                print("Press Proceed to deal the turn.")
 
             else:
                 # Conduct flop betting
@@ -265,7 +276,8 @@ class Application():
 
             # If betting has already stopped, automatically proceed to the end
             if self.stopBetting:
-                self.proceed()
+                self.proceedButton.config(state = NORMAL)
+                print("Press Proceed to deal the river.")
 
             else:
                 # Conduct turn betting
@@ -296,7 +308,8 @@ class Application():
 
             # If betting has already stopped, automatically proceed to the end
             if self.stopBetting:
-                self.proceed()
+                self.proceedButton.config(state = NORMAL)
+                print("Press Proceed to deal the river.")
 
             else:
                 # Conduct river betting
@@ -338,6 +351,10 @@ class Application():
 
             # Check to see if Players should be removed from the game or if the game is finished
             self.updatePlayers()
+
+            # Update main window labels
+            self.currentBet.set("Current bet: 0")
+            self.potString.set("Main pot: 0")
 
             self.state = "preRound"
 
@@ -404,8 +421,7 @@ class Application():
 
     def enableBetting(self, player):
         """ Finds the action the given player wants to take while betting"""
-        # Reset bettingOngoing to "none" and find the index of the given Player
-        self.bettingOngoing = "none"
+        # Find the index of the given Player
         playerIndex = self.table.allPlayers.index(player)
 
         # Find the appropriate bounds for the slider
@@ -441,9 +457,9 @@ class Application():
         raiseSlider = self.raiseSliders[playerIndex]
         raiseSlider.config(
             to = 0,
-            from_ = 0,
-            state = DISABLED)
+            from_ = 1)
         raiseSlider.set(0)
+        raiseSlider.config(state = DISABLED)
 
         # Disable betting buttons for the given Player
         self.callButtons[playerIndex].config(state = DISABLED)
@@ -487,22 +503,12 @@ class Application():
                     print(player, "\n")
                     break
                 
-                # TODO: Remove, this check should be done by restricting slider values
-                elif r > player.chips - (self.table.currentBet - player.bet):
-                    print("You do not have enough chips to raise by that amount. \n")
-                    continue
-                
                 elif r >= self.table.currentBet:
                     player.Raise(self.table.currentBet, r)
                     self.table.stay(player)
                     self.table.currentBet += r
                     print("Player", player.name, "has raised to", self.table.currentBet, "\n")
                     break
-                
-                # TODO: Remove, this check should be done by restricting slider values
-                else:
-                    print("You must raise by at least as much as the current bet:", self.table.currentBet,"\n")
-                    continue
         
         # Player goes all-in
         elif x == 'a':
