@@ -861,6 +861,10 @@ class Table:
 
     def allIn(self, allinPlayer):
         """ Puts a player all-in and changes the pots accordingly"""
+        # Keep track of Player's previous contributions to all pots
+        prevContributions = list(map(lambda x: x.contributions[allinPlayer] - allinPlayer.bet, self.pots))
+
+        # Change player bet
         allinPlayer.allIn()
         
         # Initialize a sum to keep track of how many chips are needed to get into each successive pot
@@ -879,8 +883,9 @@ class Table:
 
                     # If the player has less than the amount of chips needed to stay in the pot, remove them and create a new pot
                     elif allinPlayer.bet < self.currentBet:
+                        prevContribution = prevContributions[self.pots.index(pot)]
                         pot.removePlayer(allinPlayer)
-                        self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
+                        self.insertPot(allinPlayer, prevContribution + allinPlayer.bet - betSum, pot)
                         break
 
                     # If the player has more chips than the current bet, act as if the player has raised.
@@ -1012,7 +1017,8 @@ class Table:
 
         # Add a new side pot with just the latest player in it
         self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
-
+    
+    # TODO: Fix issue found in 12/11 test
     def insertPot(self, newPlayer, newAmountPerPlayer, nextPot):
         """ Create a new pot right before the nextPot"""
         # Keep track of the new number of chips and keep a list of players that can be bumped down to the inserted pot
@@ -1021,13 +1027,13 @@ class Table:
 
         # Add up the contributions of each of the players in the next pot to the new inserted pot
         for player in nextPot.Players:
-            # If a player hasn't contributed enough to nextPot, bump them from nextPot
+            # If a player hasn't contributed more than the amountPerPlayer of the new pot, bump them from nextPot
             if nextPot.contributions[player] <= newAmountPerPlayer:
                 newAmount += nextPot.contributions[player]
                 bumpedPlayers += [player]
                 
-            else:
-                newAmount += newAmountPerPlayer
+            #else:
+            newAmount += newAmountPerPlayer
 
         # Remove bumped players from nextPot
         for player in bumpedPlayers:
@@ -1042,6 +1048,7 @@ class Table:
 
         self.pots.insert(i, Pot(amount = newAmount, amountPerPlayer = newAmountPerPlayer, Players = nextPot.Players + bumpedPlayers + [newPlayer], mainPot = i == 0, currentPot = False))
 
+"""
 def main():
     # Initialize the poker table
     table = Table()
@@ -1051,6 +1058,7 @@ def main():
     table.getBlinds()
 
     gameLoop(table)
+"""
 
 def gameLoop(table):
     """ Function for running the main game loop"""

@@ -27,6 +27,7 @@ class Application():
         self.bets = []
         self.handImages = {}
         self.handLabels = {}
+        self.flipButtons = {}
         self.callButtons = {}
         self.raiseButtons = {}
         self.raiseSliders = {}
@@ -67,8 +68,11 @@ class Application():
   
         # Create new windows for each player
         for i in range(0, self.numPlayers):
+            # Initialize window
             self.handWindows += [Toplevel()]
             self.handWindows[i].geometry("600x400")
+            
+            # Initialize string variables for bet and chip Labels
             chipCount = StringVar()
             bet = StringVar()
             self.chipCounts += [chipCount]
@@ -77,15 +81,18 @@ class Application():
             chipCount.set("Chips: " + str(self.startingChips))
             bet.set("Bet: 0")
 
+            # Initialize player name and pack in Labels
             playerString = "Player " + str(i + 1) + ": " + self.playerNames[i]
             Label(self.handWindows[i], text = playerString).pack(side = "top")
             Label(self.handWindows[i], textvariable = chipCount).pack(side = "top")
             Label(self.handWindows[i], textvariable = bet).pack(side = "top")
 
-            Button(self.handWindows[i], 
+            # Initialize card flipping Button
+            flipButton = Button(self.handWindows[i], 
                 text = "Flip cards",
                 fg = "red",
-                command=lambda i=i: self.flipCards(i)).pack()
+                state = DISABLED,
+                command=lambda i=i: self.flipCards(i))
             
             # Initialize betting option buttons for the window
             callButton = Button(self.handWindows[i], 
@@ -122,6 +129,7 @@ class Application():
                 command=lambda i=i: self.setBet(self.table.allPlayers[i], "f"))
 
             # Track the buttons/sliders in their appropriate dictionaries
+            self.flipButtons[i] = flipButton
             self.callButtons[i] = callButton
             self.raiseSliders[i] = raiseSlider
             self.raiseButtons[i] = raiseButton
@@ -129,11 +137,13 @@ class Application():
             self.foldButtons[i] = foldButton
             
             # Pack the buttons/sliders to the windows
+            flipButton.pack()
             callButton.pack(side = "right")
             raiseSlider.pack(side = "right")
             raiseButton.pack(side = "right")
             allinButton.pack(side = "right")
             foldButton.pack(side = "right")
+            
 
     def proceed(self):
         """ Proceeds to the next step in the game, based on the current state and certain
@@ -155,8 +165,9 @@ class Application():
                 player.canBet = True
                 player.folded = False
             
-            # Deal players and set up a pre-flop betting rotation
+            # Deal players, enable flipButtons and set up a pre-flop betting rotation
             self.dealPlayers()
+            self.enableFlipping()
             self.table.getPreFlopRotation(self.round)
             self.preflopSetup()
 
@@ -349,6 +360,9 @@ class Application():
             self.clearHands()
             self.faceupBoard = []
 
+            # Disable Flip Cards buttons
+            self.disableFlipping()
+
             # Check to see if Players should be removed from the game or if the game is finished
             self.updatePlayers()
 
@@ -419,8 +433,20 @@ class Application():
         
         self.potString.set(pString)
 
+    def enableFlipping(self):
+        """ Enables Flip Cards button for all Players"""
+        # Iterate through all the flipButtons and enable them
+        for key in self.flipButtons:
+            self.flipButtons[key].config(state = NORMAL)
+
+    def disableFlipping(self):
+        """ Disables Flip Cards button for all Players"""
+        # Iterate through all the flipButtons and enable them
+        for key in self.flipButtons:
+            self.flipButtons[key].config(state = DISABLED)
+
     def enableBetting(self, player):
-        """ Finds the action the given player wants to take while betting"""
+        """ Enables betting buttons for a given player"""
         # Find the index of the given Player
         playerIndex = self.table.allPlayers.index(player)
 
@@ -450,6 +476,7 @@ class Application():
         self.foldButtons[playerIndex].config(state = NORMAL)
 
     def disableBetting(self, player):
+        """ Disables betting buttons for a given Player"""
         # Find the index of the given Player
         playerIndex = self.table.allPlayers.index(player)
 
