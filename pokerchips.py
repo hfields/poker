@@ -10,7 +10,7 @@ class Player:
     """ Creates a representation of a player according to 4 traits: 
     their name, how many chips they have, their current bet, their cards, whether 
     or not they've won the current pot, and whether or not they've folded."""
-    def __init__(self, name = '', chips = 0, bet = 0, won = False, folded = False, allin = False, canBet = True, hand = None):
+    def __init__(self, name = '', chips = 0, bet = 0, won = False, folded = False, allin = False, canBet = True, hand = None, onlineId = None):
         self.name = name
         self.chips = chips
         self.bet = bet
@@ -19,6 +19,7 @@ class Player:
         self.allin = allin
         self.canBet = canBet
         self.hand = hand
+        self.onlineId = onlineId
     
     def __repr__(self):
         """ Returns a string describing the given player"""
@@ -321,43 +322,60 @@ class Table:
         for pot in self.pots:
             print(pot)
 
-    def getPlayers(self):
+    def getPlayers(self, pokerBot=None, names=None, chips=None):
         """ Uses user input to find the names of all the players, and how many chips they
-        should start with, then sets the Players to that """
-        # Find out how many people are playing, their names, and the starting amount of chips
-        while True:
-            p = get_int("How many players should there be? ")
-            if p >= 2:
-                playercount = p
-                break
-            else:
-                print("Please choose a higher number of players.\n")
-                continue
+        should start with, then sets the Players to that. Can also take in names and chips
+        argument to skip user input. If the game is in online mode, we use the table's bot
+        to query facebook for user IDs """
         playernames = []
-        for i in range(playercount):
+        startChips = None
+
+        # If no names have been provided, get them from terminal input
+        if names == None:
+            # Find out how many people are playing, their names, and the starting amount of chips
             while True:
-                s = "Player " + str(i + 1) + ", what is your name? "
-                name = str(input(s))
-                if name in playernames:
-                    print("That name has already been taken. Please choose another.\n")
+                p = get_int("How many players should there be? ")
+                if p >= 2:
+                    playercount = p
+                    break
+                else:
+                    print("Please choose a higher number of players.\n")
                     continue
-                elif "," in name or " " in name:
-                    print("Player names cannot have spaces or commas. Please choose another name.\n")
-                    continue
-                elif name == "":
-                    print("Please enter a name.\n")
+            
+            for i in range(playercount):
+                while True:
+                    s = "Player " + str(i + 1) + ", what is your name? "
+                    name = str(input(s))
+                    if name in playernames:
+                        print("That name has already been taken. Please choose another.\n")
+                        continue
+                    elif "," in name or " " in name:
+                        print("Player names cannot have spaces or commas. Please choose another name.\n")
+                        continue
+                    elif name == "":
+                        print("Please enter a name.\n")
+                        continue
+                    else:
+                        playernames += [name]
+                        break
+
+        # If names have been provided, assume they have been error-checked, and set Player names
+        else:
+            playernames = names
+
+        # If no chips have been provided, get them from terminal input
+        if chips == None:
+            while True:
+                startChips = get_int("How many chips should each player start with? ")
+                if startChips < 2:
+                    print("Please choose a higher number for starting chips.\n")
                     continue
                 else:
-                    playernames += [name]
                     break
 
-        while True:
-            startChips = get_int("How many chips should each player start with? ")
-            if startChips < 2:
-                print("Please choose a higher number for starting chips.\n")
-                continue
-            else:
-                break
+        # If chips have been provided, assume they have been error-checked, and set starting chips
+        else:
+            startChips = chips
         
         # Fill up Players and allPlayers
         for player in playernames:
@@ -365,18 +383,25 @@ class Table:
             self.Players += [p]
             self.allPlayers += [p]
     
-    def getBlinds(self):
+    def getBlinds(self, smallBlind = None):
         """ Uses user input to set the small and big blind. Big blind will always be
         double the small blind"""
-        while True:
-            s = get_int("How much should small blind be (big blind will be double the small blind)? ")
-            if 2 * s <= self.Players[0].chips:
-                self.smallBlind = s
-                self.bigBlind = 2 * s
-                break
-            else:
-                print("Big blind cannot be greater than the amount of chips each player starts with.\n")
-                continue
+        # If no small blind has been provided, get it from terminal input
+        if smallBlind == None:
+            while True:
+                s = get_int("How much should small blind be (big blind will be double the small blind)? ")
+                if 2 * s <= self.Players[0].chips:
+                    self.smallBlind = s
+                    self.bigBlind = 2 * s
+                    break
+                else:
+                    print("Big blind cannot be greater than the amount of chips each player starts with.\n")
+                    continue
+
+        # If small blind has been provided, assume it has been error-checked, and set blinds
+        else:
+            self.smallBlind = smallBlind
+            self.bigBlind = 2 * smallBlind
     
     def getPreFlopRotation(self, Round):
         """ Uses the Round number to determine the (pre-flop) betting rotation."""
@@ -407,7 +432,7 @@ class Table:
         for i in range((blind2 + 1) % playerCount):
             self.rotation += [self.Players[i]]
 
-    def getRotation(self, Round):
+    async def getRotation(self, Round):
         """ Uses the Round number to determine the betting rotation."""
         # Set indices in player list for the dealer
         playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
@@ -422,7 +447,7 @@ class Table:
         for i in range((dealer + 1) % playerCount):
             self.rotation += [filtPlayers[i]]
 
-    def preflop(self, application = None):
+    async def preflop(self, application = None):
         """ Handles the pre-flop betting rotation. Takes an optional application
         argument to designate when the game is being run with its GUI"""
         # Handle small blind, removing the player from the rotation if it puts them all-in
@@ -481,9 +506,9 @@ class Table:
 
         else:
             # Update chip counts in the GUI, if applicable
-            application.updateChips()
+            await application.updateChips()
 
-    def postflop(self, application = None):
+    async def postflop(self, application = None):
         """ Handles betting rotations past the pre-flop rotation. Takes an optional application
         argument to designate when the game is being run with its GUI"""
         # Reset currentBet and player bets
@@ -511,7 +536,7 @@ class Table:
         
         else:
             # Update chip counts in the GUI, if applicable
-            application.updateChips()
+            await application.updateChips()
 
     def bettingRotation(self, application = None):
         """ Handles a single betting rotation. Returns True if only 1 player
@@ -727,8 +752,11 @@ class Table:
 
         return players
 
-    def resolvePots(self, board = None):
-        """ Resolves all of pots at the end of a Round."""
+    async def resolvePots(self, board = None, bot = None):
+        """ Resolves all of pots at the end of a Round. If a board argument is provided,
+        the pots are automatically resolved. Otherwise, user input is required. If a bot
+        argument is provided (i.e. game is in online mode), the bot will message the game
+        thread with the winners of each pot."""
         # Print pot info
         self.potInfo()
         print("\n")
@@ -746,6 +774,10 @@ class Table:
             if lastPlayer != None:
                 pot.resolve([lastPlayer])
 
+                # Have bot send a message if in online mode
+                if bot:
+                    await bot.declareWinners([lastPlayer], pot.amount)
+
             else: 
                 while True:
                     # Filter lastWinners based on whether or not they are in the pot
@@ -754,6 +786,10 @@ class Table:
                     # If there are lastWinners in the pot, automatically resolve it in their favor
                     if lastWinners != []:
                         pot.resolve(lastWinners)
+
+                        # Have bot send a message if in online mode
+                        if bot:
+                            await bot.declareWinners(lastWinners, pot.amount)
                         
                         # Delete the pot object
                         del pot
@@ -772,6 +808,10 @@ class Table:
                         # Resolve the pots in favor of the winners and save them as the lastWinners
                         pot.resolve(winners)
                         lastWinners = winners
+
+                        # Have bot send a message if in online mode
+                        if bot:
+                            await bot.declareWinners(winners, pot.amount)
                             
                         # Delete the pot object and break
                         del pot
@@ -798,6 +838,10 @@ class Table:
                         # Resolve the pots in favor of the winners and save them as the lastWinners
                         pot.resolve(winners)
                         lastWinners = winners
+
+                        # Have bot send a message if in online mode
+                        if bot:
+                            await bot.declareWinners(winners, pot.amount)
                             
                         # Delete the pot object and break
                         del pot
@@ -1018,7 +1062,6 @@ class Table:
         # Add a new side pot with just the latest player in it
         self.pots += [Pot(amount = newAmount, Players = [newPlayer], mainPot = False, currentPot = True)]
     
-    # TODO: Fix issue found in 12/11 test
     def insertPot(self, newPlayer, newAmountPerPlayer, nextPot):
         """ Create a new pot right before the nextPot"""
         # Keep track of the new number of chips and keep a list of players that can be bumped down to the inserted pot
@@ -1275,6 +1318,3 @@ def rotation_test(blind2, playercount):
     for i in range(blind2 + 1):
         preflop_rotation += [i]
     return preflop_rotation
-
-if __name__ == "__main__" and debug == False:
-    main()

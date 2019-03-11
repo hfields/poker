@@ -531,7 +531,7 @@ class HandHelper:
 
 
 
-def main():
+def check():
     d = Deck()
     board = d.deal(5)
     print(board)
@@ -621,6 +621,3 @@ def straightFlushTest():
     cards = h.boardCombine(d, 5)
     print(cards)
     return HandHelper.findStraightFlush(cards)
-
-if __name__ == "__main__" and debug == False:
-    main()
