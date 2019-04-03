@@ -445,13 +445,14 @@ class Application():
             if not self.bot:
                 self.clearBoard()
 
-            # Disable Flip Cards buttons and clear hands if in local mode
-            if not self.bot:
+                # Disable Flip Cards buttons and clear hands if in local mode
                 self.disableFlipping()
                 self.clearHands()
 
             # Check to see if Players should be removed from the game or if the game is finished
             await self.updatePlayers()
+
+            self.state = "preRound"
 
             # Update main window labels
             if not self.bot:
@@ -461,8 +462,7 @@ class Application():
             else:
                 self.currentBet = "Current bet: 0"
                 self.potString = "Main pot: 0"
-
-            self.state = "preRound"
+                await self.proceed()
 
     async def getNextPlayer(self):
         """ Pop a Player from the rotation queue and enable their betting buttons. If

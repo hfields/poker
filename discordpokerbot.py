@@ -31,6 +31,9 @@ class DiscordPokerBot(Client):
         """ Tells a player the contents of their hand"""
         user = await(self.get_user_info(player.onlineId))
         await self.send_message(user, player.name + ", you have been dealt: " + str(player.hand))
+        for card in player.hand.cards:
+            #with open("Cards/" + repr(card) + ".png", 'rb') as picture:
+            await self.send_file(user, "Cards/" + repr(card) + ".png")
 
     async def on_message(self, message):
         """ Handles the bot being messaged while listening."""
@@ -183,7 +186,7 @@ def test():
     global TOKEN, channelId
     f = open("logininfo.txt", "r")
     info = f.readlines()
-    TOKEN = info[2]
+    TOKEN = info[2][:-1]
     channelId = info[3]
 
     table = Table()

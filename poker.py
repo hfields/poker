@@ -16,9 +16,9 @@ def main():
     global email, password, TOKEN, channelId
     f = open("logininfo.txt", "r")
     info = f.readlines()
-    email = info[0]
-    password = info[1]
-    TOKEN = info[2]
+    email = info[0][:-1]
+    password = info[1][:-1]
+    TOKEN = info[2][:-1]
     channelId = info[3]
 
     # Initialize the startup options window
