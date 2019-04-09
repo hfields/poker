@@ -1,6 +1,8 @@
-from pokergui import *
+from localpokergui import Application as LocalApp
+from localpokerchips import Table as LocalTable
 from fbpokerbot import *
 from discordpokerbot import *
+from tkinter import *
 from tkinter.messagebox import *
 import asyncio
 
@@ -194,7 +196,7 @@ def startGame(players, chips, smallBlind, gui, online, window):
     window.destroy()
 
     # Initialize the poker table
-    table = Table()
+    table = LocalTable()
 
     # Get the players and blinds
     table.getPlayers(names=players, chips=chips)
@@ -204,11 +206,9 @@ def startGame(players, chips, smallBlind, gui, online, window):
     top = Tk()
     top.geometry("1200x450")
 
+    LocalApp(master=top, table=table)
+
     top.mainloop()
-
-    app = Application(master=top, table=table)
-
-    print("Round", app.round + 1)
 
 if __name__ == "__main__":
     main()
