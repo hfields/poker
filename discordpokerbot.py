@@ -41,6 +41,9 @@ class DiscordPokerBot(Client):
         if message.author != self.user:
             text = message.content.split()
 
+            # Get the user info to send messages back to the currentplayer
+            user = await(self.get_user_info(message.author.id))
+
             # If we are finding Ids, check to see if a member is joining under a particular name
             if self.state == "findIds":
                 if text[0] == "!join":
@@ -97,8 +100,7 @@ class DiscordPokerBot(Client):
                     await self.send_message(message.channel, info)
                         
                 # If the current player has messaged the bot, parse their input to see how they have bet
-                elif message.author.id == self.currentPlayer.onlineId:
-                    
+                elif message.author.id == self.currentPlayer.onlineId:               
                     # Handle calling, going all-in, or folding
                     if text[0] == 'c' or text[0] == 'a' or text[0] == 'f':
                         # Find the proper string for the action taken
@@ -115,7 +117,7 @@ class DiscordPokerBot(Client):
                             action = "folded"
 
                         # Send a message to the current player
-                        await self.send_message(message.channel, "You have " + action)
+                        await self.send_message(user, "You have " + action)
                         
                         # Set bet in application and send a message to the gameThread
                         await self.application.setBet(self.currentPlayer, text[0])
@@ -131,14 +133,13 @@ class DiscordPokerBot(Client):
                             if raiseAmount != self.currentPlayer.chips - (self.application.table.currentBet - self.currentPlayer.bet)\
                                 and raiseAmount <= self.application.table.currentBet:
 
-                                await self.send_message(message.channel, "Invalid raise amount. Please raise at least as much as the current bet (or go all-in).")
+                                await self.send_message(user, "Invalid raise amount. Please raise at least as much as the current bet (or go all-in).")
 
                             else:
-                                name = self.currentPlayer
+                                name = self.currentPlayer.name
 
                                 # Send a message to the current player
-                                
-                                await self.send_message(message.channel, "You have raised by " + str(raiseAmount))
+                                await self.send_message(user, "You have raised by " + str(raiseAmount))
                                 
                                 # Set bet in application and send a message to the gameThread
                                 await self.application.setBet(self.currentPlayer, text[0], raiseAmount)
@@ -146,18 +147,33 @@ class DiscordPokerBot(Client):
 
                         except Exception as e:
                             print(e)
-                            await self.send_message(message.channel, "Invalid raise amount. Please provide a valid integer.")
+                            await self.send_message(user, "Invalid raise amount. Please provide a valid integer.")
 
                     # Proceed to the next Player (or to the end of betting)
                     await self.application.proceed()
 
                 # If the wrong player has responded, notify them that it is not their turn
                 else:
-                    await self.send_message(message.channel, "It is not your turn. The current player is " + self.currentPlayer.name)
+                    await self.send_message(user, "It is not your turn. The current player is " + self.currentPlayer.name)
 
     async def updateBoard(self, state, board):
         """ Send a message to the gameThread updating players on the state of the board"""
-        await self.send_message(self.gameThread, "Dealing the " + state + ".\nThe board is now " + str(board))
+
+        # Send a message to the game thread announcing the new board
+        message = "Dealing the " + state + ".\nThe board is now "
+
+        for card in board[:-1]:
+            message += str(card) + ", "
+
+        message += str(board[-1]) + "."
+        
+        await self.send_message(self.gameThread, message)
+        
+        # Send pictures of each card in the board to the game thread
+        for card in board:
+            #with open("Cards/" + repr(card) + ".png", 'rb') as picture:
+            await self.send_file(self.gameThread, "Cards/" + repr(card) + ".png")
+
 
     async def sendMessagetoGamethread(self, message):
         """ Send the given message to the gameThread. Used so that outside functions can easily send
