@@ -671,9 +671,6 @@ class Application():
         if not self.bot:
             self.disableBetting(player)
 
-        # Proceed to the next Player (or to the end of betting)
-        await self.proceed()
-
     def clearBoard(self):
         """ Destroys all labels and images associated with the board and resets the
         boardImages and boardLabels lists to empty"""

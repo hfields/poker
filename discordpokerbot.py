@@ -144,8 +144,12 @@ class DiscordPokerBot(Client):
                                 await self.application.setBet(self.currentPlayer, text[0], raiseAmount)
                                 await self.send_message(self.gameThread, "Player " + name + " has raised by " + str(raiseAmount))
 
-                        except:
+                        except Exception as e:
+                            print(e)
                             await self.send_message(message.channel, "Invalid raise amount. Please provide a valid integer.")
+
+                    # Proceed to the next Player (or to the end of betting)
+                    await self.application.proceed()
 
                 # If the wrong player has responded, notify them that it is not their turn
                 else:
@@ -154,6 +158,11 @@ class DiscordPokerBot(Client):
     async def updateBoard(self, state, board):
         """ Send a message to the gameThread updating players on the state of the board"""
         await self.send_message(self.gameThread, "Dealing the " + state + ".\nThe board is now " + str(board))
+
+    async def sendMessagetoGamethread(self, message):
+        """ Send the given message to the gameThread. Used so that outside functions can easily send
+        any message to the gameThread."""
+        await self.send_message(self.gameThread, message)
 
     async def declareWinners(self, winners, potAmount):
         """ Messages the group chat with the winner(s) of a pot"""

@@ -802,8 +802,15 @@ class Table:
                         
                         # Find a list of the players that have won the pot
                         winners = []
-                        for i in HandHelper.findWinner(hands, board):
-                            winners += [pot.Players[i]]
+                        for winner in HandHelper.findWinner(hands, board, True):
+                            player = pot.Players[winner[0]]
+                            winners += [player]
+
+                            message = HandHelper.createWinMessage(player, winner[1])
+                            print(message)
+                            
+                            if bot:
+                                await bot.sendMessagetoGamethread(message)
 
                         # Resolve the pots in favor of the winners and save them as the lastWinners
                         pot.resolve(winners)
