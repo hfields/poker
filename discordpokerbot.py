@@ -33,7 +33,7 @@ class DiscordPokerBot(Client):
         await self.send_message(user, player.name + ", you have been dealt: " + str(player.hand))
         for card in player.hand.cards:
             #with open("Cards/" + repr(card) + ".png", 'rb') as picture:
-            await self.send_file(user, "Cards/" + repr(card) + ".png")
+            await self.send_file(user, "Cards_small/" + repr(card) + ".png")
 
     async def on_message(self, message):
         """ Handles the bot being messaged while listening."""
@@ -172,7 +172,7 @@ class DiscordPokerBot(Client):
         # Send pictures of each card in the board to the game thread
         for card in board:
             #with open("Cards/" + repr(card) + ".png", 'rb') as picture:
-            await self.send_file(self.gameThread, "Cards/" + repr(card) + ".png")
+            await self.send_file(self.gameThread, "Cards_small/" + repr(card) + ".png")
 
 
     async def sendMessagetoGamethread(self, message):
