@@ -124,9 +124,11 @@ class Hand:
         """ Flips the value of faceUp"""
         self.faceUp = not self.faceUp
 
-    def equal(self, other, board):
+    def equal(self, other, board, returnBestHand = False):
         """ Checks to see if two hands are of equal value (i.e. can make
-        the same value 5-card hand), given a board of community cards."""
+        the same value 5-card hand), given a board of community cards. 
+        If returnBestHand is set to True and the result is True, the 
+        function returns the best hand tuple."""
         # Find the best 5-card hands that can be made by each Hand and the board
         bestHand1 = HandHelper.findBestHand(self.cards + board)
         bestHand2 = HandHelper.findBestHand(other.cards + board)
@@ -141,45 +143,88 @@ class Hand:
             if bestHand1[0][i].value != bestHand2[0][i].value:
                 return False
 
-        return True
+        # Return best hand tuple if flag is set
+        if returnBestHand:
+            return bestHand1
 
-    def greater(self, other, board):
+        else:
+            return True
+
+    def greater(self, other, board, returnBestHand = False):
         """ Checks to see if a Hand is of greater value (i.e. can make
         a better 5-card hand), than another Hand given a board of 
-        community cards."""
+        community cards. If returnBestHand is set to True and the result 
+        is True, the function returns the best hand tuple."""
         # Find the best 5-card hands that can be made by each Hand and the board
         bestHand1 = HandHelper.findBestHand(self.cards + board)
         bestHand2 = HandHelper.findBestHand(other.cards + board)
 
         # If the types of the best hands are different, return whether bestHand1 is the more valuable type
         if bestHand1[1] != bestHand2[1]:
-            return HandHelper.types.index(bestHand1[1]) > HandHelper.types.index(bestHand2[1])
+            # Return best hand tuple if flag is set
+            if returnBestHand:
+                if HandHelper.types.index(bestHand1[1]) > HandHelper.types.index(bestHand2[1]):
+                    return bestHand1
+                
+                else:
+                    return False
+            
+            else:
+                return HandHelper.types.index(bestHand1[1]) > HandHelper.types.index(bestHand2[1])
         
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return whether bestHand1 has the higher value card
             if bestHand1[0][i].value != bestHand2[0][i].value:
-                return bestHand1[0][i] > bestHand2[0][i]
+                # Return best hand tuple if flag is set
+                if returnBestHand:
+                    if bestHand1[0][i] > bestHand2[0][i]:
+                        return bestHand1
+                    
+                    else:
+                        return False
+                    
+                else:
+                    return bestHand1[0][i] > bestHand2[0][i]
 
         return False
 
-    def less(self, other, board):
+    def less(self, other, board, returnBestHand = False):
         """ Checks to see if a Hand is of greater value (i.e. can make
         a better 5-card hand), than another Hand given a board of 
-        community cards."""
+        community cards. If returnBestHand is set to True and the result 
+        is True, the function returns the best hand tuple."""
         # Find the best 5-card hands that can be made by each Hand and the board
         bestHand1 = HandHelper.findBestHand(self.cards + board)
         bestHand2 = HandHelper.findBestHand(other.cards + board)
 
         # If the types of the best hands are different, return whether bestHand1 is the less valuable type
         if bestHand1[1] != bestHand2[1]:
-            return HandHelper.types.index(bestHand1[1]) < HandHelper.types.index(bestHand2[1])
+            # Return best hand tuple if flag is set
+            if returnBestHand:
+                if HandHelper.types.index(bestHand1[1]) < HandHelper.types.index(bestHand2[1]):
+                    return bestHand1
+                
+                else:
+                    return False
+            
+            else:
+                return HandHelper.types.index(bestHand1[1]) < HandHelper.types.index(bestHand2[1])
         
         # If the types are the same, compare each of the cards in the best hands
         for i in range(5):
             # If any cards have different values, return whether bestHand1 has the lower value card
             if bestHand1[0][i].value != bestHand2[0][i].value:
-                return bestHand1[0][i] < bestHand2[0][i]
+                # Return best hand tuple if flag is set
+                if returnBestHand:
+                    if bestHand1[0][i] > bestHand2[0][i]:
+                        return bestHand1
+                    
+                    else:
+                        return False
+                    
+                else:
+                    return bestHand1[0][i] < bestHand2[0][i]
 
         return False
 
@@ -191,8 +236,7 @@ class Hand:
     def boardCombine(self, deck, boardNum):
         """ Returns a list of cards from the hand and with boardNum
         cards from the deck"""
-        return self.cards + deck.deal(boardNum)
-    
+        return self.cards + deck.deal(boardNum) 
 
 class HandHelper:
     """ HandHelper contains methods for finding the best possible 5-card
@@ -200,7 +244,7 @@ class HandHelper:
     well as for comparing different 5-card hands. """
 
     suits = ["Club", "Heart", "Diamond", "Spade"]
-    types = ["High", "Pair", "TwoPair", "ThreeOfAKind", "Straight", "Flush", "FullHouse", "FourOfAKind", "StraightFlush"] 
+    types = ["high card", "pair", "two pair", "three of a kind", "straight", "flush", "full house", "four of a kind", "straight flush"] 
 
     @staticmethod
     def findRepeats(numRepeats, allCards):
@@ -508,30 +552,70 @@ class HandHelper:
             if hand != None:
                 return (hand, HandHelper.types[-i - 1])
 
-        # If we don't have anything better than a high card, return the first 5 cards in allCards and its type ("high")
+        # If we don't have anything better than a high card, return the first 5 cards in allCards and its type ("high card")
         return (allCards[0:5], HandHelper.types[0])
 
     @staticmethod
-    def findWinner(hands, board):
-        """ Returns the index of best hand out of a given array of hands,
-        given the board. If there are multiple best hands, return an array
-        of their indices."""
+    def findWinner(hands, board, returnResults = False):
+        """ Returns the indices of the winning hands out of a given array 
+        of two-card hands, given the board. If returnResults is set to True,
+        then the indices will be returned in tuples along with information 
+        about their winning hand (i.e. a tuple of their 5-card hand and its
+        type) """
+        # Return tuples of index and best hand info if returnResults is True
+        if returnResults:
+            winners = [(0, HandHelper.findBestHand(hands[0].cards + board))]
 
-        winners = [0]
+            # Iterate through remaining hands
+            for i in range(1, len(hands)):
+                # Check if current hand is better than previous winners
+                greaterResult = hands[i].greater(hands[winners[-1][0]], board, True)
 
-        for i in range(1, len(hands)):
-            if hands[i].greater(hands[winners[-1]], board):
-                winners = [i]
-            elif hands[i].equal(hands[winners[-1]], board):
-                winners += [i]
+                if greaterResult:
+                    winners = [(i, greaterResult)]
+                    continue
+
+                # Check if current hand is equal in value to previous winners
+                equalResult = hands[i].equal(hands[winners[-1][0]], board, True)
+
+                if equalResult:
+                    winners += [(i, equalResult)]
+                    continue
+
+        # Otherwise just return indices
+        else:
+            winners = [0]
+
+            # Iterate through remaining hands
+            for i in range(1, len(hands)):
+                # Check if current hand is better than previous winners
+                if hands[i].greater(hands[winners[-1]], board):
+                    winners = [i]
+
+                elif hands[i].equal(hands[winners[-1]], board):
+                    winners += [i]
 
         return winners
 
+    @staticmethod
+    def createWinMessage(player, handInfo):
+        """ Takes in a Player and a tuple with their best hand and
+        its type and returns a string announcing that they have won
+        a pot with their cards."""
+        message = "Player " + player.name + " had " 
+        for card in player.hand.cards[:-1]:
+            message += str(card) + ", "
 
+        message += str(player.hand.cards[-1]) + " and wins with a " + handInfo[1] + " ("
 
+        for card in handInfo[0][:-1]:
+            message += str(card) + ", "
 
+        message += str(handInfo[0][-1]) + ")"
 
-def main():
+        return message
+
+def check():
     d = Deck()
     board = d.deal(5)
     print(board)
@@ -621,6 +705,3 @@ def straightFlushTest():
     cards = h.boardCombine(d, 5)
     print(cards)
     return HandHelper.findStraightFlush(cards)
-
-if __name__ == "__main__" and debug == False:
-    main()

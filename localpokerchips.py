@@ -432,7 +432,7 @@ class Table:
         for i in range((blind2 + 1) % playerCount):
             self.rotation += [self.Players[i]]
 
-    async def getRotation(self, Round):
+    def getRotation(self, Round):
         """ Uses the Round number to determine the betting rotation."""
         # Set indices in player list for the dealer
         playerCount = len(self.Players) - len(self.foldedPlayers) - len(self.resolvedAllinPlayers)
@@ -447,7 +447,7 @@ class Table:
         for i in range((dealer + 1) % playerCount):
             self.rotation += [filtPlayers[i]]
 
-    async def preflop(self, application = None):
+    def preflop(self, application = None):
         """ Handles the pre-flop betting rotation. Takes an optional application
         argument to designate when the game is being run with its GUI"""
         # Handle small blind, removing the player from the rotation if it puts them all-in
@@ -506,9 +506,9 @@ class Table:
 
         else:
             # Update chip counts in the GUI, if applicable
-            await application.updateChips()
+            application.updateChips()
 
-    async def postflop(self, application = None):
+    def postflop(self, application = None):
         """ Handles betting rotations past the pre-flop rotation. Takes an optional application
         argument to designate when the game is being run with its GUI"""
         # Reset currentBet and player bets
@@ -536,7 +536,7 @@ class Table:
         
         else:
             # Update chip counts in the GUI, if applicable
-            await application.updateChips()
+            application.updateChips()
 
     def bettingRotation(self, application = None):
         """ Handles a single betting rotation. Returns True if only 1 player
@@ -752,7 +752,7 @@ class Table:
 
         return players
 
-    async def resolvePots(self, board = None, bot = None):
+    def resolvePots(self, board = None):
         """ Resolves all of pots at the end of a Round. If a board argument is provided,
         the pots are automatically resolved. Otherwise, user input is required. If a bot
         argument is provided (i.e. game is in online mode), the bot will message the game
@@ -774,10 +774,6 @@ class Table:
             if lastPlayer != None:
                 pot.resolve([lastPlayer])
 
-                # Have bot send a message if in online mode
-                if bot:
-                    await bot.declareWinners([lastPlayer], pot.amount)
-
             else: 
                 while True:
                     # Filter lastWinners based on whether or not they are in the pot
@@ -786,10 +782,6 @@ class Table:
                     # If there are lastWinners in the pot, automatically resolve it in their favor
                     if lastWinners != []:
                         pot.resolve(lastWinners)
-
-                        # Have bot send a message if in online mode
-                        if bot:
-                            await bot.declareWinners(lastWinners, pot.amount)
                         
                         # Delete the pot object
                         del pot
@@ -806,19 +798,11 @@ class Table:
                             player = pot.Players[winner[0]]
                             winners += [player]
 
-                            message = HandHelper.createWinMessage(player, winner[1])
-                            print(message)
-                            
-                            if bot:
-                                await bot.sendMessagetoGamethread(message)
+                            print(HandHelper.createWinMessage(player, winner[1]))
 
                         # Resolve the pots in favor of the winners and save them as the lastWinners
                         pot.resolve(winners)
                         lastWinners = winners
-
-                        # Have bot send a message if in online mode
-                        if bot:
-                            await bot.declareWinners(winners, pot.amount)
                             
                         # Delete the pot object and break
                         del pot
@@ -845,10 +829,6 @@ class Table:
                         # Resolve the pots in favor of the winners and save them as the lastWinners
                         pot.resolve(winners)
                         lastWinners = winners
-
-                        # Have bot send a message if in online mode
-                        if bot:
-                            await bot.declareWinners(winners, pot.amount)
                             
                         # Delete the pot object and break
                         del pot
