@@ -134,6 +134,7 @@ class DiscordPokerBot(Client):
                                 and raiseAmount <= self.application.table.currentBet:
 
                                 await self.send_message(user, "Invalid raise amount. Please raise at least as much as the current bet (or go all-in).")
+                                return
 
                             else:
                                 name = self.currentPlayer.name
@@ -148,6 +149,11 @@ class DiscordPokerBot(Client):
                         except Exception as e:
                             print(e)
                             await self.send_message(user, "Invalid raise amount. Please provide a valid integer.")
+
+                    # Current player has not sent a valid message
+                    else:
+                        await self.send_message(user, "Invalid option. Please try again.")
+                        return
 
                     # Proceed to the next Player (or to the end of betting)
                     await self.application.proceed()
@@ -173,7 +179,6 @@ class DiscordPokerBot(Client):
         for card in board:
             #with open("Cards/" + repr(card) + ".png", 'rb') as picture:
             await self.send_file(self.gameThread, "Cards_small/" + repr(card) + ".png")
-
 
     async def sendMessagetoGamethread(self, message):
         """ Send the given message to the gameThread. Used so that outside functions can easily send

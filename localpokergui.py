@@ -437,13 +437,17 @@ class Application():
         """ Enables Flip Cards button for all Players"""
         # Iterate through all the flipButtons and enable them
         for key in self.flipButtons:
-            self.flipButtons[key].config(state = NORMAL)
+            # Only enable flip buttons for non-bankrupt Players
+            if self.table.allPlayers[key] not in self.table.bankruptPlayers:
+                self.flipButtons[key].config(state = NORMAL)
 
     def disableFlipping(self):
         """ Disables Flip Cards button for all Players"""
         # Iterate through all the flipButtons and enable them
         for key in self.flipButtons:
-            self.flipButtons[key].config(state = DISABLED)
+            # Only enable flip buttons for non-bankrupt Players
+            if self.table.allPlayers[key] not in self.table.bankruptPlayers:
+                self.flipButtons[key].config(state = DISABLED)
 
     def enableBetting(self, player):
         """ Enables betting buttons for a given player"""

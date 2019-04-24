@@ -865,6 +865,11 @@ class Table:
 
             if player.chips == 0:
                 self.bankruptPlayers += [player]
+                
+                if bot:
+                    bot.application.numActivePlayers -= 1
+                    await bot.sendMessagetoGamethread("Player " + player.name + " has been eliminated from play")
+
                 print("Player", player.name, "has been eliminated from play")
 
         # Remove bankrupt players from players list
@@ -930,14 +935,12 @@ class Table:
                     # If the player has exactly the amount of chips to stay in the pot, keep them in
                     if allinPlayer.bet == self.currentBet:
                         pot.stayIn(allinPlayer)
-                        break
 
                     # If the player has less than the amount of chips needed to stay in the pot, remove them and create a new pot
                     elif allinPlayer.bet < self.currentBet:
                         prevContribution = prevContributions[self.pots.index(pot)]
                         pot.removePlayer(allinPlayer)
                         self.insertPot(allinPlayer, prevContribution + allinPlayer.bet - betSum, pot)
-                        break
 
                     # If the player has more chips than the current bet, act as if the player has raised.
                     else:
@@ -947,18 +950,15 @@ class Table:
                             self.pots[-2].stayIn(allinPlayer)
                         else:
                             pot.increaseBet(allinPlayer, allinPlayer.bet - self.currentBet)
-                        break
 
                 else:
                     # If the player has the exact amount of chips needed to get into the pot, add them and break
                     if allinPlayer.bet == self.currentBet:
                         pot.addPlayer(allinPlayer, self.currentBet)
-                        break
 
                     # If the player has less than the amount of chips needed to get into the pot, insert a new pot and break
                     elif allinPlayer.bet < self.currentBet:
                         self.insertPot(allinPlayer, allinPlayer.bet - betSum, pot)
-                        break
 
                     # If the player has more chips than the current bet, act as if the player has raised.
                     else:
@@ -968,7 +968,7 @@ class Table:
                             self.pots[-2].addPlayer(allinPlayer, self.currentBet)
                         else:
                             pot.addPlayer(allinPlayer, self.currentBet)
-                        break
+                break
 
             else:
                 # Actions will change based on whether or not the allinPlayer is in the pot
@@ -1036,7 +1036,7 @@ class Table:
             
             # If there are no pots so far, create the main pot
             if self.pots == []:
-                pot = Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = [player] + self.rotation[-2:], mainPot = True)
+                pot = Pot(amount = player.bet * (len(self.allinPlayers) - i), Players = [player] + listCopy(self.rotation), mainPot = True)
                 self.pots += [pot]
                 
                 # Add in bet of other blind, if they weren't also all-in
@@ -1054,7 +1054,7 @@ class Table:
         
         # If there are no pots so far, create the main pot with the blinds
         if self.pots == []:
-            self.pots += [Pot(amount = self.rotation[-2].bet + self.rotation[-1].bet, Players = self.rotation[-2:], mainPot = True)]
+            self.pots += [Pot(amount = self.rotation[-2].bet + self.rotation[-1].bet, Players = listCopy(self.rotation), mainPot = True)]
             self.pots[-1].setAmountPerPlayer(self.bigBlind)
 
         # Set the latest pot's currentPot flag to True
