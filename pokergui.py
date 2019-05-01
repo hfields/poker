@@ -640,6 +640,10 @@ class Application():
                     self.table.allIn(player)
                     print(player, "\n")
                     break
+
+                elif r > player.chips - (self.table.currentBet - player.bet):
+                    print("You do not have enough chips to raise by that amount. \n")
+                    break
                 
                 # Handle raise for Player and Table
                 elif r >= self.table.currentBet:

@@ -108,7 +108,11 @@ class DiscordPokerBot(Client):
                         name = self.currentPlayer.name
 
                         if text[0] == 'c':
-                            action = "called"
+                            if self.application.table.currentBet == self.currentPlayer.bet:
+                                action = "checked"
+
+                            else:
+                                action = "called"
                         
                         elif text[0] == 'a':
                             action = "gone all-in"
@@ -136,6 +140,10 @@ class DiscordPokerBot(Client):
                                 await self.send_message(user, "Invalid raise amount. Please raise at least as much as the current bet (or go all-in).")
                                 return
 
+                            elif raiseAmount > self.currentPlayer.chips - (self.application.table.currentBet - self.currentPlayer.bet):
+                                await self.send_message(user, "You do not have enough chips to raise by that amount.")
+                                return
+
                             else:
                                 name = self.currentPlayer.name
 
@@ -149,6 +157,7 @@ class DiscordPokerBot(Client):
                         except Exception as e:
                             print(e)
                             await self.send_message(user, "Invalid raise amount. Please provide a valid integer.")
+                            return
 
                     # Current player has not sent a valid message
                     else:
