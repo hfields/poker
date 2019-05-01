@@ -2,6 +2,7 @@ from discord import *
 from pokergui import *
 import asyncio
 from poker import *
+from cards import HandHelper
 
 TOKEN = ""
 channelId = ""
@@ -189,14 +190,42 @@ class DiscordPokerBot(Client):
             #with open("Cards/" + repr(card) + ".png", 'rb') as picture:
             await self.send_file(self.gameThread, "Cards_small/" + repr(card) + ".png")
 
+    async def revealHand(self, player, bestHandInfo = None):
+        """ Reveals the given Player's hand to the gameThread"""
+        # If best hand info has been provided, create a message with it
+        if bestHandInfo:
+            message = HandHelper.createHandMessage(player, bestHandInfo)
+
+        # Otherwise, simply notify the gamethread of the Player's hole cards
+        else:
+            message = "Player " + player.name + " has "
+
+            for card in player.hand.cards[:-1]:
+                message += str(card) + ", "
+
+            message += str(player.hand.cards[-1])
+
+        await self.send_message(self.gameThread, message)
+
     async def sendMessagetoGamethread(self, message):
         """ Send the given message to the gameThread. Used so that outside functions can easily send
         any message to the gameThread."""
         await self.send_message(self.gameThread, message)
 
-    async def declareWinners(self, winners, potAmount):
+    async def declareWinners(self, winners, potAmount, bestHandInfos = None):
         """ Messages the group chat with the winner(s) of a pot"""
-        start = "Player " + winners[0].name + " has"
+        if bestHandInfos:
+            # Reveal the hand of the last betting player immediately even if they haven't won
+            lastBettingPlayer = self.application.lastBettingPlayer
+            
+            if self.application.lastBettingPlayer not in winners:
+                await self.revealHand(lastBettingPlayer, HandHelper.findBestHand(lastBettingPlayer.hand.cards + self.application.faceupBoard))
+
+            for i in range(len(winners)):
+                winner = winners[i]
+                bestHandInfo = bestHandInfos[i]
+
+                await self.revealHand(winner, bestHandInfo)
 
         if len(winners) > 1:
             start = "Players "
@@ -204,6 +233,9 @@ class DiscordPokerBot(Client):
                 start += winner.name + ", "
 
             start += "and " + winners[-1].name + " have"
+
+        else:
+            start = "Player " + winners[0].name + " has"
 
         await self.send_message(self.gameThread, start + " won the pot (" + str(potAmount) + " chips)")
 

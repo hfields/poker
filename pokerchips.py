@@ -262,9 +262,14 @@ class Table:
         return None
 
     def allPlayersAllin(self):
-        """ Returns True if all Players left unfolded are all-in.
+        """ Returns True if all Players left unfolded are all-in (or all but one)
         False otherwise"""
-        return all(player.allin or player.folded for player in self.Players)
+        count = 0
+        for player in self.Players:
+            if not player.allin and not player.folded:
+                count += 1
+                
+        return count == 1 or count == 0
 
     def lastPlayer(self):
         """ Returns True if there is one or fewer players left in the rotation"""
@@ -801,16 +806,15 @@ class Table:
                         hands = list(map(lambda x: x.hand, pot.Players))
                         
                         # Find a list of the players that have won the pot
+                        winnersInfo = HandHelper.findWinner(hands, board, True)
+                        bestHandInfos = [winnerInfo[1] for winnerInfo in winnersInfo]
                         winners = []
-                        for winner in HandHelper.findWinner(hands, board, True):
-                            player = pot.Players[winner[0]]
+                        for winnerInfo in winnersInfo:
+                            player = pot.Players[winnerInfo[0]]
                             winners += [player]
 
-                            message = HandHelper.createWinMessage(player, winner[1])
+                            message = HandHelper.createHandMessage(player, winnerInfo[1])
                             print(message)
-                            
-                            if bot:
-                                await bot.sendMessagetoGamethread(message)
 
                         # Resolve the pots in favor of the winners and save them as the lastWinners
                         pot.resolve(winners)
@@ -818,7 +822,7 @@ class Table:
 
                         # Have bot send a message if in online mode
                         if bot:
-                            await bot.declareWinners(winners, pot.amount)
+                            await bot.declareWinners(winners, pot.amount, bestHandInfos)
                             
                         # Delete the pot object and break
                         del pot

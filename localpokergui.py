@@ -520,26 +520,27 @@ class Application():
         
         # Player raises
         elif x == 'r':
-            while True:
-                # Re-allow all other players to bet
-                for betPlayer in self.table.Players:
-                    betPlayer.canBet = True
-                
-                # Prevent the player from betting again until someone else raises
-                player.canBet = False
+            r = self.raiseSliders[self.table.allPlayers.index(player)].get()
+            if r == player.chips - (self.table.currentBet - player.bet):
+                self.table.allIn(player)
+                print(player, "\n")
 
-                r = self.raiseSliders[self.table.allPlayers.index(player)].get()
-                if r == player.chips - (self.table.currentBet - player.bet):
-                    self.table.allIn(player)
-                    print(player, "\n")
-                    break
-                
-                elif r >= self.table.currentBet:
-                    player.Raise(self.table.currentBet, r)
-                    self.table.stay(player)
-                    self.table.currentBet += r
-                    print("Player", player.name, "has raised to", self.table.currentBet, "\n")
-                    break
+            elif r > player.chips - (self.table.currentBet - player.bet):
+                print("You do not have enough chips to raise by that amount. \n")
+                return
+            
+            elif r >= self.table.currentBet:
+                player.Raise(self.table.currentBet, r)
+                self.table.stay(player)
+                self.table.currentBet += r
+                print("Player", player.name, "has raised to", self.table.currentBet, "\n")
+
+            # Re-allow all other players to bet
+            for betPlayer in self.table.Players:
+                betPlayer.canBet = True
+            
+            # Prevent the player from betting again until someone else raises
+            player.canBet = False
         
         # Player goes all-in
         elif x == 'a':

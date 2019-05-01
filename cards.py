@@ -598,20 +598,20 @@ class HandHelper:
         return winners
 
     @staticmethod
-    def createWinMessage(player, handInfo):
+    def createHandMessage(player, bestHandInfo):
         """ Takes in a Player and a tuple with their best hand and
-        its type and returns a string announcing that they have won
-        a pot with their cards."""
+        its type and returns a string announcing their hole cards and
+        the type of their best 5-card hand."""
         message = "Player " + player.name + " had " 
         for card in player.hand.cards[:-1]:
             message += str(card) + ", "
 
-        message += str(player.hand.cards[-1]) + " and wins with a " + handInfo[1] + " ("
+        message += str(player.hand.cards[-1]) + " and has a " + bestHandInfo[1] + " ("
 
-        for card in handInfo[0][:-1]:
+        for card in bestHandInfo[0][:-1]:
             message += str(card) + ", "
 
-        message += str(handInfo[0][-1]) + ")"
+        message += str(bestHandInfo[0][-1]) + ")"
 
         return message
 

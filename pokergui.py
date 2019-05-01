@@ -24,6 +24,7 @@ class Application():
         self.playerNames = list(map(lambda x: x.name, table.allPlayers))
         self.numPlayers = len(self.playerNames)
         self.numActivePlayers = self.numPlayers
+        self.lastBettingPlayer = None
         self.startingChips = table.allPlayers[0].chips
         
         # Card-tracking variables
@@ -245,6 +246,13 @@ class Application():
 
                     # Reset rotation
                     self.table.rotation = []
+
+                    # Reveal all all-in players hands if all players are all-in
+                    if self.bot:
+                        if self.table.allPlayersAllin():
+                            for player in self.table.Players:
+                                if not player.folded:
+                                    await self.bot.revealHand(player)
                     
                     # If all players have folded, proceed immediately to pot resolution
                     if self.allPlayersFolded:
@@ -494,6 +502,9 @@ class Application():
         await self.table.preflop(self)
         await self.fillQueue()
 
+        # Set the lastBettingPlayer to the big blind
+        self.lastBettingPlayer = self.rotationQueue[-1]
+
     async def postflopSetup(self):
         """ Sets up a post-flop betting rotation."""
         # Set up the starting bets and fill the rotation queue
@@ -619,39 +630,37 @@ class Application():
         
         # Player raises
         elif x == 'r':
-            while True:
-                # Re-allow all other players to bet
-                for betPlayer in self.table.Players:
-                    betPlayer.canBet = True
-                
-                # Prevent the player from betting again until someone else raises
-                player.canBet = False
+            # Get raise amount from sliders if in local mode
+            if not self.bot:
+                r = self.raiseSliders[self.table.allPlayers.index(player)].get()
 
-                # Get raise amount from sliders if in local mode
-                if not self.bot:
-                    r = self.raiseSliders[self.table.allPlayers.index(player)].get()
+            # If in online mode, use raiseAmount argument
+            else:
+                r = raiseAmount
 
-                # If in online mode, use raiseAmount argument
-                else:
-                    r = raiseAmount
+            # Set player to all-in if raise amount is equal to all-in
+            if r == player.chips - (self.table.currentBet - player.bet):
+                self.table.allIn(player)
+                print(player, "\n")
 
-                # Set player to all-in if raise amount is equal to all-in
-                if r == player.chips - (self.table.currentBet - player.bet):
-                    self.table.allIn(player)
-                    print(player, "\n")
-                    break
+            elif r > player.chips - (self.table.currentBet - player.bet):
+                print("You do not have enough chips to raise by that amount. \n")
+                return
+            
+            # Handle raise for Player and Table
+            elif r >= self.table.currentBet:
+                player.Raise(self.table.currentBet, r)
+                self.table.stay(player)
+                self.table.currentBet += r
+                print("Player", player.name, "has raised to", self.table.currentBet, "\n")
 
-                elif r > player.chips - (self.table.currentBet - player.bet):
-                    print("You do not have enough chips to raise by that amount. \n")
-                    break
-                
-                # Handle raise for Player and Table
-                elif r >= self.table.currentBet:
-                    player.Raise(self.table.currentBet, r)
-                    self.table.stay(player)
-                    self.table.currentBet += r
-                    print("Player", player.name, "has raised to", self.table.currentBet, "\n")
-                    break
+            # Re-allow all other players to bet
+            for betPlayer in self.table.Players:
+                betPlayer.canBet = True
+            
+            # Prevent the player from betting again until someone else raises, and set them as last betting player
+            player.canBet = False
+            self.lastBettingPlayer = player
         
         # Player goes all-in
         elif x == 'a':
